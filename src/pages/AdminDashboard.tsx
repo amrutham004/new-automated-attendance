@@ -102,7 +102,7 @@ const AdminDashboard = () => {
 
           {/* QR Code & Export */}
           <div className="space-y-6">
-            <QRCodeDisplay />
+            <QRCodeDisplay showForAdmin />
 
             <Card className="p-6 card-shadow">
               <h3 className="font-semibold font-display mb-4">Export Reports</h3>

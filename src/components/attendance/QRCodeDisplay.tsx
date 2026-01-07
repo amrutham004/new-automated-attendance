@@ -1,50 +1,38 @@
 import { Card } from '@/components/ui/card';
-import { QrCode, Copy, Check } from 'lucide-react';
 import { getDailyToken } from '@/lib/attendanceData';
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { QRCodeSVG } from 'qrcode.react';
 
-const QRCodeDisplay = () => {
-  const [copied, setCopied] = useState(false);
+interface QRCodeDisplayProps {
+  showForAdmin?: boolean;
+}
+
+const QRCodeDisplay = ({ showForAdmin = false }: QRCodeDisplayProps) => {
   const token = getDailyToken();
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(token);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   return (
     <Card className="p-6 card-shadow text-center">
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold font-display">Today's Attendance Token</h3>
+        <h3 className="text-lg font-semibold font-display">
+          {showForAdmin ? "Today's Attendance QR Code" : "Scan to Mark Attendance"}
+        </h3>
         
-        {/* QR Code Placeholder */}
-        <div className="mx-auto w-40 h-40 bg-muted rounded-xl flex items-center justify-center border-2 border-dashed border-border">
-          <div className="text-center">
-            <QrCode size={48} className="mx-auto text-muted-foreground mb-2" />
-            <p className="text-xs text-muted-foreground">QR Code</p>
-          </div>
-        </div>
-
-        {/* Token Display */}
-        <div className="bg-secondary rounded-lg p-3">
-          <p className="text-xs text-muted-foreground mb-1">Or enter token manually:</p>
-          <div className="flex items-center justify-center gap-2">
-            <code className="text-lg font-mono font-bold text-foreground">{token}</code>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8"
-              onClick={handleCopy}
-            >
-              {copied ? <Check size={16} className="text-success" /> : <Copy size={16} />}
-            </Button>
-          </div>
+        {/* Real QR Code */}
+        <div className="mx-auto w-48 h-48 bg-white rounded-xl flex items-center justify-center p-3 border border-border">
+          <QRCodeSVG 
+            value={token}
+            size={168}
+            level="H"
+            includeMargin={false}
+            bgColor="transparent"
+            fgColor="hsl(200, 25%, 15%)"
+          />
         </div>
 
         <p className="text-xs text-muted-foreground">
-          This token changes daily. Share with students for attendance.
+          {showForAdmin 
+            ? "Display this QR code for students to scan. Changes daily."
+            : "Point your camera at the QR code displayed in class"
+          }
         </p>
       </div>
     </Card>

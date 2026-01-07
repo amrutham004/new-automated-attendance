@@ -1,17 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '@/components/attendance/Header';
-import QRCodeDisplay from '@/components/attendance/QRCodeDisplay';
 import StatusBadge from '@/components/attendance/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { markAttendance, getDailyToken } from '@/lib/attendanceData';
+import { markAttendance } from '@/lib/attendanceData';
 import { AttendanceStatus } from '@/types/attendance';
-import { CheckCircle, XCircle, AlertCircle, ArrowLeft } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, ArrowLeft, Camera, QrCode } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { Scanner } from '@yudiel/react-qr-scanner';
 
-type Step = 'input' | 'result';
+type Step = 'input' | 'scanning' | 'result';
 
 interface ResultState {
   success: boolean;
@@ -22,15 +22,29 @@ interface ResultState {
 const MarkAttendance = () => {
   const [step, setStep] = useState<Step>('input');
   const [studentId, setStudentId] = useState('');
-  const [token, setToken] = useState('');
+  const [scannedToken, setScannedToken] = useState('');
   const [result, setResult] = useState<ResultState | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [scanError, setScanError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleStartScan = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    if (!studentId) return;
+    setScanError('');
+    setStep('scanning');
+  };
 
-    // Simulate network delay
+  const handleScanSuccess = (detectedCodes: { rawValue: string }[]) => {
+    if (detectedCodes.length > 0 && detectedCodes[0].rawValue) {
+      const token = detectedCodes[0].rawValue;
+      setScannedToken(token);
+      processAttendance(token);
+    }
+  };
+
+  const processAttendance = (token: string) => {
+    setIsSubmitting(true);
+    
     setTimeout(() => {
       const response = markAttendance(studentId.toUpperCase(), token);
       setResult(response);
@@ -42,8 +56,9 @@ const MarkAttendance = () => {
   const handleReset = () => {
     setStep('input');
     setStudentId('');
-    setToken('');
+    setScannedToken('');
     setResult(null);
+    setScanError('');
   };
 
   return (
@@ -58,21 +73,18 @@ const MarkAttendance = () => {
           </Link>
         </Button>
 
-        {step === 'input' ? (
+        {step === 'input' && (
           <div className="space-y-6 animate-fade-in">
             <div className="text-center">
               <h1 className="text-2xl font-bold font-display mb-2">Mark Attendance</h1>
               <p className="text-muted-foreground">
-                Enter your Student ID and today's attendance token
+                Enter your Student ID, then scan the QR code displayed in class
               </p>
             </div>
 
-            {/* QR Code / Token Display */}
-            <QRCodeDisplay />
-
             {/* Attendance Form */}
             <Card className="p-6 card-shadow">
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleStartScan} className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="studentId">Student ID</Label>
                   <Input
@@ -88,30 +100,81 @@ const MarkAttendance = () => {
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="token">Attendance Token</Label>
-                  <Input
-                    id="token"
-                    placeholder={`e.g., ${getDailyToken()}`}
-                    value={token}
-                    onChange={(e) => setToken(e.target.value)}
-                    required
-                    className="text-center text-lg font-mono"
-                  />
-                </div>
-
                 <Button 
                   type="submit" 
                   className="w-full gradient-primary text-primary-foreground"
                   size="lg"
-                  disabled={isSubmitting || !studentId || !token}
+                  disabled={!studentId}
                 >
-                  {isSubmitting ? 'Recording...' : 'Record Attendance'}
+                  <Camera size={20} className="mr-2" />
+                  Scan QR Code
                 </Button>
               </form>
             </Card>
+
+            {/* Instructions */}
+            <Card className="p-4 card-shadow bg-muted/50">
+              <div className="flex items-start gap-3">
+                <QrCode size={24} className="text-primary flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-sm">How to mark attendance:</p>
+                  <ol className="text-sm text-muted-foreground mt-1 space-y-1">
+                    <li>1. Enter your Student ID above</li>
+                    <li>2. Click "Scan QR Code"</li>
+                    <li>3. Point your camera at the QR code displayed by your teacher</li>
+                  </ol>
+                </div>
+              </div>
+            </Card>
           </div>
-        ) : (
+        )}
+
+        {step === 'scanning' && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="text-center">
+              <h1 className="text-2xl font-bold font-display mb-2">Scan QR Code</h1>
+              <p className="text-muted-foreground">
+                Point your camera at the attendance QR code
+              </p>
+            </div>
+
+            <Card className="p-4 card-shadow overflow-hidden">
+              <div className="aspect-square rounded-lg overflow-hidden bg-black">
+                <Scanner
+                  onScan={handleScanSuccess}
+                  onError={(error) => setScanError(error instanceof Error ? error.message : 'Camera error')}
+                  constraints={{ facingMode: 'environment' }}
+                  styles={{
+                    container: { width: '100%', height: '100%' },
+                    video: { width: '100%', height: '100%', objectFit: 'cover' }
+                  }}
+                />
+              </div>
+              
+              {scanError && (
+                <p className="mt-3 text-sm text-danger text-center">{scanError}</p>
+              )}
+              
+              {isSubmitting && (
+                <div className="mt-4 text-center">
+                  <div className="animate-pulse-soft text-primary font-medium">
+                    Processing attendance...
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => setStep('input')}
+            >
+              Cancel
+            </Button>
+          </div>
+        )}
+
+        {step === 'result' && (
           <div className="animate-scale-in">
             <Card className="p-8 card-shadow text-center">
               {result?.success ? (
