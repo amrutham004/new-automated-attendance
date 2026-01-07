@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Header from '@/components/attendance/Header';
 import StatCard from '@/components/attendance/StatCard';
 import StatusBadge from '@/components/attendance/StatusBadge';
-import QRCodeDisplay from '@/components/attendance/QRCodeDisplay';
+import TeacherScanCard from '@/components/attendance/TeacherScanCard';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -70,6 +70,11 @@ const AdminDashboard = () => {
           />
         </div>
 
+        {/* Scan Students Card */}
+        <div className="mb-8">
+          <TeacherScanCard />
+        </div>
+
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Chart Section */}
           <div className="lg:col-span-2">
@@ -100,10 +105,8 @@ const AdminDashboard = () => {
             </Card>
           </div>
 
-          {/* QR Code & Export */}
+          {/* Export */}
           <div className="space-y-6">
-            <QRCodeDisplay showForAdmin />
-
             <Card className="p-6 card-shadow">
               <h3 className="font-semibold font-display mb-4">Export Reports</h3>
               <div className="space-y-3">

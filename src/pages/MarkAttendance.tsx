@@ -1,64 +1,93 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/attendance/Header';
-import StatusBadge from '@/components/attendance/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { markAttendance } from '@/lib/attendanceData';
-import { AttendanceStatus } from '@/types/attendance';
-import { CheckCircle, XCircle, AlertCircle, ArrowLeft, Camera, QrCode } from 'lucide-react';
+import { 
+  generateStudentQRData, 
+  getStudentById, 
+  hasMarkedAttendanceToday,
+  QR_REFRESH_INTERVAL,
+  QR_VALIDITY_SECONDS 
+} from '@/lib/attendanceData';
+import { ArrowLeft, CheckCircle, RefreshCw, Clock, Shield } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Scanner } from '@yudiel/react-qr-scanner';
+import { QRCodeSVG } from 'qrcode.react';
+import { Progress } from '@/components/ui/progress';
 
-type Step = 'input' | 'scanning' | 'result';
-
-interface ResultState {
-  success: boolean;
-  message: string;
-  status?: AttendanceStatus;
-}
+type Step = 'input' | 'qr-display' | 'already-marked';
 
 const MarkAttendance = () => {
   const [step, setStep] = useState<Step>('input');
   const [studentId, setStudentId] = useState('');
-  const [scannedToken, setScannedToken] = useState('');
-  const [result, setResult] = useState<ResultState | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [scanError, setScanError] = useState('');
+  const [studentName, setStudentName] = useState('');
+  const [qrData, setQrData] = useState('');
+  const [timeRemaining, setTimeRemaining] = useState(QR_VALIDITY_SECONDS);
+  const [error, setError] = useState('');
 
-  const handleStartScan = (e: React.FormEvent) => {
+  // Generate new QR code
+  const generateNewQR = useCallback(() => {
+    const data = generateStudentQRData(studentId.toUpperCase());
+    setQrData(data);
+    setTimeRemaining(QR_VALIDITY_SECONDS);
+  }, [studentId]);
+
+  // Auto-refresh QR code
+  useEffect(() => {
+    if (step !== 'qr-display') return;
+
+    // Generate initial QR
+    generateNewQR();
+
+    // Refresh QR every 5 seconds
+    const refreshInterval = setInterval(() => {
+      generateNewQR();
+    }, QR_REFRESH_INTERVAL);
+
+    // Countdown timer
+    const countdownInterval = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev <= 1) {
+          return QR_VALIDITY_SECONDS; // Reset when new QR is generated
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      clearInterval(refreshInterval);
+      clearInterval(countdownInterval);
+    };
+  }, [step, generateNewQR]);
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!studentId) return;
-    setScanError('');
-    setStep('scanning');
-  };
-
-  const handleScanSuccess = (detectedCodes: { rawValue: string }[]) => {
-    if (detectedCodes.length > 0 && detectedCodes[0].rawValue) {
-      const token = detectedCodes[0].rawValue;
-      setScannedToken(token);
-      processAttendance(token);
-    }
-  };
-
-  const processAttendance = (token: string) => {
-    setIsSubmitting(true);
+    setError('');
     
-    setTimeout(() => {
-      const response = markAttendance(studentId.toUpperCase(), token);
-      setResult(response);
-      setStep('result');
-      setIsSubmitting(false);
-    }, 500);
+    const student = getStudentById(studentId.toUpperCase());
+    if (!student) {
+      setError('Student ID not found. Please check and try again.');
+      return;
+    }
+
+    // Check if already marked
+    if (hasMarkedAttendanceToday(student.id)) {
+      setStudentName(student.name);
+      setStep('already-marked');
+      return;
+    }
+
+    setStudentName(student.name);
+    setStep('qr-display');
   };
 
   const handleReset = () => {
     setStep('input');
     setStudentId('');
-    setScannedToken('');
-    setResult(null);
-    setScanError('');
+    setStudentName('');
+    setQrData('');
+    setError('');
   };
 
   return (
@@ -78,13 +107,12 @@ const MarkAttendance = () => {
             <div className="text-center">
               <h1 className="text-2xl font-bold font-display mb-2">Mark Attendance</h1>
               <p className="text-muted-foreground">
-                Enter your Student ID, then scan the QR code displayed in class
+                Enter your Student ID to generate your attendance QR code
               </p>
             </div>
 
-            {/* Attendance Form */}
             <Card className="p-6 card-shadow">
-              <form onSubmit={handleStartScan} className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="studentId">Student ID</Label>
                   <Input
@@ -100,122 +128,121 @@ const MarkAttendance = () => {
                   </p>
                 </div>
 
+                {error && (
+                  <p className="text-sm text-danger text-center">{error}</p>
+                )}
+
                 <Button 
                   type="submit" 
                   className="w-full gradient-primary text-primary-foreground"
                   size="lg"
                   disabled={!studentId}
                 >
-                  <Camera size={20} className="mr-2" />
-                  Scan QR Code
+                  Generate My QR Code
                 </Button>
               </form>
             </Card>
 
-            {/* Instructions */}
+            {/* Security Info */}
             <Card className="p-4 card-shadow bg-muted/50">
               <div className="flex items-start gap-3">
-                <QrCode size={24} className="text-primary flex-shrink-0 mt-0.5" />
+                <Shield size={24} className="text-primary flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-medium text-sm">How to mark attendance:</p>
-                  <ol className="text-sm text-muted-foreground mt-1 space-y-1">
-                    <li>1. Enter your Student ID above</li>
-                    <li>2. Click "Scan QR Code"</li>
-                    <li>3. Point your camera at the QR code displayed by your teacher</li>
-                  </ol>
+                  <p className="font-medium text-sm">Secure Attendance</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Your QR code refreshes every 5 seconds and expires in 30 seconds. 
+                    Show it to your teacher for scanning.
+                  </p>
                 </div>
               </div>
             </Card>
           </div>
         )}
 
-        {step === 'scanning' && (
+        {step === 'qr-display' && (
           <div className="space-y-6 animate-fade-in">
             <div className="text-center">
-              <h1 className="text-2xl font-bold font-display mb-2">Scan QR Code</h1>
+              <h1 className="text-2xl font-bold font-display mb-2">Your Attendance QR</h1>
               <p className="text-muted-foreground">
-                Point your camera at the attendance QR code
+                Show this to your teacher for scanning
               </p>
             </div>
 
-            <Card className="p-4 card-shadow overflow-hidden">
-              <div className="aspect-square rounded-lg overflow-hidden bg-black">
-                <Scanner
-                  onScan={handleScanSuccess}
-                  onError={(error) => setScanError(error instanceof Error ? error.message : 'Camera error')}
-                  constraints={{ facingMode: 'environment' }}
-                  styles={{
-                    container: { width: '100%', height: '100%' },
-                    video: { width: '100%', height: '100%', objectFit: 'cover' }
-                  }}
+            <Card className="p-6 card-shadow">
+              {/* Student Info */}
+              <div className="text-center mb-4 pb-4 border-b border-border">
+                <p className="text-sm text-muted-foreground">Student</p>
+                <p className="text-lg font-bold font-display">{studentName}</p>
+                <p className="text-sm font-mono text-muted-foreground">{studentId.toUpperCase()}</p>
+              </div>
+
+              {/* QR Code */}
+              <div className="flex justify-center mb-4">
+                <div className="p-4 bg-white rounded-xl border border-border">
+                  <QRCodeSVG 
+                    value={qrData}
+                    size={200}
+                    level="H"
+                    includeMargin={false}
+                    bgColor="transparent"
+                    fgColor="hsl(200, 25%, 15%)"
+                  />
+                </div>
+              </div>
+
+              {/* Timer */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <Clock size={14} />
+                    Valid for
+                  </span>
+                  <span className={`font-mono font-bold ${timeRemaining <= 10 ? 'text-danger' : 'text-foreground'}`}>
+                    {timeRemaining}s
+                  </span>
+                </div>
+                <Progress 
+                  value={(timeRemaining / QR_VALIDITY_SECONDS) * 100} 
+                  className="h-2"
                 />
               </div>
-              
-              {scanError && (
-                <p className="mt-3 text-sm text-danger text-center">{scanError}</p>
-              )}
-              
-              {isSubmitting && (
-                <div className="mt-4 text-center">
-                  <div className="animate-pulse-soft text-primary font-medium">
-                    Processing attendance...
-                  </div>
-                </div>
-              )}
+
+              {/* Refresh indicator */}
+              <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <RefreshCw size={12} className="animate-spin" style={{ animationDuration: '3s' }} />
+                Auto-refreshing every 5 seconds
+              </div>
             </Card>
 
             <Button 
               variant="outline" 
               className="w-full"
-              onClick={() => setStep('input')}
+              onClick={handleReset}
             >
               Cancel
             </Button>
           </div>
         )}
 
-        {step === 'result' && (
+        {step === 'already-marked' && (
           <div className="animate-scale-in">
             <Card className="p-8 card-shadow text-center">
-              {result?.success ? (
-                <div className="space-y-4">
-                  <div className="w-20 h-20 mx-auto rounded-full bg-success/10 flex items-center justify-center">
-                    <CheckCircle size={40} className="text-success" />
-                  </div>
-                  <h2 className="text-xl font-bold font-display text-success">Success!</h2>
-                  <p className="text-muted-foreground">{result.message}</p>
-                  {result.status && (
-                    <div className="flex justify-center">
-                      <StatusBadge status={result.status} />
-                    </div>
-                  )}
+              <div className="space-y-4">
+                <div className="w-20 h-20 mx-auto rounded-full bg-success/10 flex items-center justify-center">
+                  <CheckCircle size={40} className="text-success" />
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="w-20 h-20 mx-auto rounded-full bg-danger/10 flex items-center justify-center">
-                    {result?.message.includes('already') ? (
-                      <AlertCircle size={40} className="text-warning" />
-                    ) : (
-                      <XCircle size={40} className="text-danger" />
-                    )}
-                  </div>
-                  <h2 className="text-xl font-bold font-display text-danger">
-                    {result?.message.includes('already') ? 'Already Recorded' : 'Error'}
-                  </h2>
-                  <p className="text-muted-foreground">{result?.message}</p>
-                </div>
-              )}
+                <h2 className="text-xl font-bold font-display text-success">Already Recorded!</h2>
+                <p className="text-muted-foreground">
+                  Attendance for <strong>{studentName}</strong> has already been recorded for today.
+                </p>
+              </div>
 
               <div className="mt-8 space-y-3">
-                <Button 
-                  onClick={handleReset} 
-                  className="w-full"
-                  variant={result?.success ? 'outline' : 'default'}
-                >
-                  {result?.success ? 'Record Another' : 'Try Again'}
+                <Button variant="outline" className="w-full" asChild>
+                  <Link to="/student">View My Attendance</Link>
                 </Button>
-                <Button variant="ghost" className="w-full" asChild>
-                  <Link to="/">Return to Home</Link>
+                <Button variant="ghost" className="w-full" onClick={handleReset}>
+                  Use Different ID
                 </Button>
               </div>
             </Card>

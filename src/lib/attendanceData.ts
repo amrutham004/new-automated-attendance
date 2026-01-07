@@ -17,10 +17,68 @@ export const students: Student[] = [
 // Attendance cutoff time (8:30 AM)
 export const CUTOFF_TIME = '08:30';
 
-// Daily token (simulates QR code)
-export const getDailyToken = (): string => {
+// Time limit for QR code validity (30 seconds)
+export const QR_VALIDITY_SECONDS = 30;
+
+// QR refresh interval (5 seconds)
+export const QR_REFRESH_INTERVAL = 5000;
+
+// Daily secret for validation
+const getDailySecret = (): string => {
   const today = new Date().toISOString().split('T')[0];
-  return `ATT-${today.replace(/-/g, '')}`;
+  return `SECRET-${today.replace(/-/g, '')}`;
+};
+
+// Generate student-specific QR data with timestamp
+export const generateStudentQRData = (studentId: string): string => {
+  const timestamp = Date.now();
+  const secret = getDailySecret();
+  // Create a simple hash for validation
+  const hash = btoa(`${studentId}|${timestamp}|${secret}`).slice(0, 8);
+  return JSON.stringify({
+    id: studentId,
+    ts: timestamp,
+    h: hash
+  });
+};
+
+// Validate scanned QR data
+export const validateStudentQR = (qrData: string): { 
+  valid: boolean; 
+  studentId?: string; 
+  error?: string;
+  expired?: boolean;
+} => {
+  try {
+    const data = JSON.parse(qrData);
+    const { id, ts, h } = data;
+    
+    // Check if student exists
+    const student = students.find(s => s.id === id);
+    if (!student) {
+      return { valid: false, error: 'Student ID not found' };
+    }
+    
+    // Check timestamp validity (30 seconds)
+    const now = Date.now();
+    const ageSeconds = (now - ts) / 1000;
+    
+    if (ageSeconds > QR_VALIDITY_SECONDS) {
+      return { valid: false, studentId: id, error: 'QR code has expired. Student must generate a new one.', expired: true };
+    }
+    
+    // Validate hash
+    const secret = getDailySecret();
+    const expectedHash = btoa(`${id}|${ts}|${secret}`).slice(0, 8);
+    
+    if (h !== expectedHash) {
+      return { valid: false, error: 'Invalid QR code' };
+    }
+    
+    return { valid: true, studentId: id };
+  } catch {
+    return { valid: false, error: 'Invalid QR code format' };
+  }
 };
 
 // Storage keys
@@ -93,25 +151,19 @@ export const hasMarkedAttendanceToday = (studentId: string): boolean => {
   return records.some(r => r.studentId === studentId && r.date === today);
 };
 
-// Mark attendance
-export const markAttendance = (
-  studentId: string,
-  token: string
-): { success: boolean; message: string; status?: AttendanceStatus } => {
-  // Validate token
-  if (token !== getDailyToken()) {
-    return { success: false, message: 'Invalid attendance token. Please check and try again.' };
-  }
-  
+// Mark attendance (called by teacher after scanning)
+export const markAttendanceFromScan = (
+  studentId: string
+): { success: boolean; message: string; status?: AttendanceStatus; studentName?: string } => {
   // Find student
   const student = students.find(s => s.id === studentId);
   if (!student) {
-    return { success: false, message: 'Student ID not found. Please check your ID.' };
+    return { success: false, message: 'Student ID not found.' };
   }
   
   // Check if already marked
   if (hasMarkedAttendanceToday(studentId)) {
-    return { success: false, message: 'Attendance already recorded for today.' };
+    return { success: false, message: `Attendance already recorded for ${student.name} today.` };
   }
   
   // Determine status based on time
@@ -134,10 +186,15 @@ export const markAttendance = (
   saveAttendanceRecords(records);
   
   const statusMessage = status === 'PRESENT' 
-    ? 'You are marked PRESENT!' 
-    : 'You are marked LATE PRESENT.';
+    ? 'marked PRESENT' 
+    : 'marked LATE PRESENT';
   
-  return { success: true, message: `Attendance recorded successfully. ${statusMessage}`, status };
+  return { 
+    success: true, 
+    message: `${student.name} ${statusMessage}!`, 
+    status,
+    studentName: student.name 
+  };
 };
 
 // Get dashboard stats
