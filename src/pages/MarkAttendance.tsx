@@ -8,10 +8,10 @@ import {
   generateStudentQRData, 
   getStudentById, 
   hasMarkedAttendanceToday,
-  QR_REFRESH_INTERVAL,
+  
   QR_VALIDITY_SECONDS 
 } from '@/lib/attendanceData';
-import { ArrowLeft, CheckCircle, RefreshCw, Clock, Shield } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock, Shield } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Progress } from '@/components/ui/progress';
@@ -33,30 +33,24 @@ const MarkAttendance = () => {
     setTimeRemaining(QR_VALIDITY_SECONDS);
   }, [studentId]);
 
-  // Auto-refresh QR code
+  // Generate QR code once when step changes
   useEffect(() => {
     if (step !== 'qr-display') return;
 
-    // Generate initial QR
+    // Generate QR once
     generateNewQR();
 
-    // Refresh QR every 5 seconds
-    const refreshInterval = setInterval(() => {
-      generateNewQR();
-    }, QR_REFRESH_INTERVAL);
-
-    // Countdown timer
+    // Countdown timer only
     const countdownInterval = setInterval(() => {
       setTimeRemaining(prev => {
         if (prev <= 1) {
-          return QR_VALIDITY_SECONDS; // Reset when new QR is generated
+          return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
     return () => {
-      clearInterval(refreshInterval);
       clearInterval(countdownInterval);
     };
   }, [step, generateNewQR]);
@@ -150,8 +144,7 @@ const MarkAttendance = () => {
                 <div>
                   <p className="font-medium text-sm">Secure Attendance</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Your QR code refreshes every 5 seconds and expires in 30 seconds. 
-                    Show it to your teacher for scanning.
+                    Your QR code expires in 30 seconds. Show it to your teacher for scanning.
                   </p>
                 </div>
               </div>
@@ -207,11 +200,6 @@ const MarkAttendance = () => {
                 />
               </div>
 
-              {/* Refresh indicator */}
-              <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                <RefreshCw size={12} className="animate-spin" style={{ animationDuration: '3s' }} />
-                Auto-refreshing every 5 seconds
-              </div>
             </Card>
 
             <Button 
