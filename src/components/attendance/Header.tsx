@@ -1,49 +1,41 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+/**
+ * Header.tsx - Navigation Header Component
+ * 
+ * Displays the app header with:
+ * - School logo and name
+ * - Navigation links for all pages
+ * - Mobile-responsive hamburger menu
+ * 
+ * No authentication - all routes are accessible to everyone
+ */
+
+import { Link, useLocation } from 'react-router-dom';
 import SchoolLogo from './SchoolLogo';
 import { Button } from '@/components/ui/button';
-import { Home, ClipboardCheck, LayoutDashboard, User, Menu, X, LogOut, ScanLine } from 'lucide-react';
+import { Home, ClipboardCheck, LayoutDashboard, User, Menu, X, ScanLine } from 'lucide-react';
 import { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
 
 const Header = () => {
   const location = useLocation();
-  const navigate = useNavigate();
-  const { role, signOut, user } = useAuth();
-  const { toast } = useToast();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Define nav links based on role
-  const studentNavLinks = [
+  // All navigation links available to everyone
+  const navLinks = [
     { to: '/', label: 'Home', icon: Home },
     { to: '/mark-attendance', label: 'Mark Attendance', icon: ClipboardCheck },
-    { to: '/student', label: 'My Dashboard', icon: User },
-  ];
-
-  const teacherNavLinks = [
+    { to: '/student', label: 'Student Dashboard', icon: User },
     { to: '/admin', label: 'Admin Dashboard', icon: LayoutDashboard },
     { to: '/scan-student', label: 'Scan Student', icon: ScanLine },
   ];
 
-  const navLinks = role === 'teacher' ? teacherNavLinks : studentNavLinks;
-
+  // Check if a nav link is currently active
   const isActive = (path: string) => location.pathname === path;
-
-  const handleSignOut = async () => {
-    await signOut();
-    toast({
-      title: 'Signed out',
-      description: 'You have been successfully signed out.',
-    });
-    navigate('/auth');
-  };
-
-  if (!user) return null;
 
   return (
     <header className="sticky top-0 z-50 w-full bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 border-b border-border">
       <div className="container flex h-16 items-center justify-between">
-        <Link to={role === 'teacher' ? '/admin' : '/'} className="flex items-center gap-3">
+        {/* Logo and School Name */}
+        <Link to="/" className="flex items-center gap-3">
           <SchoolLogo size="small" />
           <div className="hidden sm:block">
             <h1 className="text-lg font-bold font-display text-foreground">Rural School</h1>
@@ -51,7 +43,7 @@ const Header = () => {
           </div>
         </Link>
 
-        {/* Desktop Navigation */}
+        {/* Desktop Navigation - hidden on mobile */}
         <nav className="hidden md:flex items-center gap-1">
           {navLinks.map(({ to, label, icon: Icon }) => (
             <Button
@@ -66,18 +58,9 @@ const Header = () => {
               </Link>
             </Button>
           ))}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleSignOut}
-            className="ml-2 text-muted-foreground hover:text-foreground"
-          >
-            <LogOut size={16} className="mr-2" />
-            Sign Out
-          </Button>
         </nav>
 
-        {/* Mobile Menu Button */}
+        {/* Mobile Menu Toggle Button */}
         <Button
           variant="ghost"
           size="icon"
@@ -88,7 +71,7 @@ const Header = () => {
         </Button>
       </div>
 
-      {/* Mobile Navigation */}
+      {/* Mobile Navigation Menu */}
       {mobileMenuOpen && (
         <nav className="md:hidden border-t border-border bg-card animate-fade-in">
           <div className="container py-3 space-y-1">
@@ -106,17 +89,6 @@ const Header = () => {
                 </Link>
               </Button>
             ))}
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                handleSignOut();
-              }}
-            >
-              <LogOut size={18} className="mr-2" />
-              Sign Out
-            </Button>
           </div>
         </nav>
       )}

@@ -1,6 +1,21 @@
+/**
+ * attendanceData.ts - Attendance Data Management
+ * 
+ * This file handles all attendance-related data operations:
+ * - Mock student data
+ * - QR code generation and validation
+ * - Attendance record management (using localStorage)
+ * - Statistics calculations
+ * - Data export functionality
+ * - Student photo storage
+ */
+
 import { Student, AttendanceRecord, AttendanceStatus, DashboardStats, StudentStats } from '@/types/attendance';
 
-// Mock students data
+// ========================================
+// MOCK STUDENT DATA
+// In a real app, this would come from a database
+// ========================================
 export const students: Student[] = [
   { id: 'STU001', name: 'Aditi Sharma', grade: '8A' },
   { id: 'STU002', name: 'Rahul Kumar', grade: '8A' },
@@ -14,22 +29,109 @@ export const students: Student[] = [
   { id: 'STU010', name: 'Arjun Das', grade: '10A' },
 ];
 
-// Attendance cutoff time (8:30 AM)
+// ========================================
+// CONSTANTS
+// ========================================
+
+// Time after which attendance is marked as "late" (8:30 AM)
 export const CUTOFF_TIME = '08:30';
 
-// Time limit for QR code validity (30 seconds)
+// QR codes expire after this many seconds (security feature)
 export const QR_VALIDITY_SECONDS = 30;
 
-// QR refresh interval (5 seconds)
+// How often QR codes refresh (in milliseconds)
 export const QR_REFRESH_INTERVAL = 5000;
 
-// Daily secret for validation
+// ========================================
+// LOCAL STORAGE KEYS
+// ========================================
+const ATTENDANCE_KEY = 'attendance_records';
+const STUDENT_PHOTOS_KEY = 'student_photos';
+const FACE_CAPTURES_KEY = 'face_captures';
+
+// ========================================
+// STUDENT PHOTO MANAGEMENT
+// For admin-uploaded reference photos
+// ========================================
+
+/**
+ * Get a student's reference photo
+ * @param studentId - The student's ID
+ * @returns The photo as base64 string, or null if not found
+ */
+export const getStudentPhoto = (studentId: string): string | null => {
+  const photos = localStorage.getItem(STUDENT_PHOTOS_KEY);
+  if (!photos) return null;
+  
+  const photosData = JSON.parse(photos) as Record<string, string>;
+  return photosData[studentId] || null;
+};
+
+/**
+ * Save a student's reference photo
+ * @param studentId - The student's ID
+ * @param photoData - The photo as base64 string
+ */
+export const saveStudentPhoto = (studentId: string, photoData: string): void => {
+  const photos = localStorage.getItem(STUDENT_PHOTOS_KEY);
+  const photosData = photos ? JSON.parse(photos) : {};
+  
+  photosData[studentId] = photoData;
+  localStorage.setItem(STUDENT_PHOTOS_KEY, JSON.stringify(photosData));
+};
+
+// ========================================
+// FACE CAPTURE MANAGEMENT
+// For photos captured during attendance
+// ========================================
+
+/**
+ * Save a face capture for an attendance record
+ * @param studentId - The student's ID
+ * @param date - The date of attendance
+ * @param imageData - The captured image as base64 string
+ */
+export const saveFaceCapture = (studentId: string, date: string, imageData: string): void => {
+  const captures = localStorage.getItem(FACE_CAPTURES_KEY);
+  const capturesData = captures ? JSON.parse(captures) : {};
+  
+  const key = `${studentId}_${date}`;
+  capturesData[key] = imageData;
+  localStorage.setItem(FACE_CAPTURES_KEY, JSON.stringify(capturesData));
+};
+
+/**
+ * Get a face capture for an attendance record
+ * @param studentId - The student's ID
+ * @param date - The date of attendance
+ * @returns The captured image as base64 string, or null if not found
+ */
+export const getFaceCapture = (studentId: string, date: string): string | null => {
+  const captures = localStorage.getItem(FACE_CAPTURES_KEY);
+  if (!captures) return null;
+  
+  const capturesData = JSON.parse(captures) as Record<string, string>;
+  const key = `${studentId}_${date}`;
+  return capturesData[key] || null;
+};
+
+// ========================================
+// QR CODE FUNCTIONS
+// ========================================
+
+/**
+ * Generate a daily secret for QR code validation
+ * This changes every day for security
+ */
 const getDailySecret = (): string => {
   const today = new Date().toISOString().split('T')[0];
   return `SECRET-${today.replace(/-/g, '')}`;
 };
 
-// Generate student-specific QR data with timestamp
+/**
+ * Generate QR code data for a student
+ * The QR contains: student ID, timestamp, and a validation hash
+ */
 export const generateStudentQRData = (studentId: string): string => {
   const timestamp = Date.now();
   const secret = getDailySecret();
@@ -42,7 +144,14 @@ export const generateStudentQRData = (studentId: string): string => {
   });
 };
 
-// Validate scanned QR data
+// ========================================
+// QR CODE VALIDATION
+// ========================================
+
+/**
+ * Validate a scanned QR code
+ * Checks: student exists, QR is not expired, hash is valid
+ */
 export const validateStudentQR = (qrData: string): { 
   valid: boolean; 
   studentId?: string; 
@@ -81,21 +190,29 @@ export const validateStudentQR = (qrData: string): {
   }
 };
 
-// Storage keys
-const ATTENDANCE_KEY = 'attendance_records';
+// ========================================
+// ATTENDANCE RECORD MANAGEMENT
+// ========================================
 
-// Get all attendance records
+/**
+ * Get all attendance records from localStorage
+ */
 export const getAttendanceRecords = (): AttendanceRecord[] => {
   const stored = localStorage.getItem(ATTENDANCE_KEY);
   return stored ? JSON.parse(stored) : generateMockHistory();
 };
 
-// Save attendance records
+/**
+ * Save attendance records to localStorage
+ */
 const saveAttendanceRecords = (records: AttendanceRecord[]): void => {
   localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(records));
 };
 
-// Generate mock historical data
+/**
+ * Generate mock historical data (30 days)
+ * This creates sample data for demonstration
+ */
 const generateMockHistory = (): AttendanceRecord[] => {
   const records: AttendanceRecord[] = [];
   const today = new Date();
@@ -143,6 +260,7 @@ const generateMockHistory = (): AttendanceRecord[] => {
   saveAttendanceRecords(records);
   return records;
 };
+
 
 // Check if student already marked attendance today
 export const hasMarkedAttendanceToday = (studentId: string): boolean => {

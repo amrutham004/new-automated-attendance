@@ -1,8 +1,21 @@
+/**
+ * AdminDashboard.tsx - Admin Dashboard Page
+ * 
+ * This page provides administrators with:
+ * - Overview statistics (total students, present, late, absent)
+ * - Quick access to scan students
+ * - Weekly attendance chart
+ * - Export functionality (CSV)
+ * - Student photo upload for face verification
+ * - Today's attendance table with filtering
+ */
+
 import { useState } from 'react';
 import Header from '@/components/attendance/Header';
 import StatCard from '@/components/attendance/StatCard';
 import StatusBadge from '@/components/attendance/StatusBadge';
 import TeacherScanCard from '@/components/attendance/TeacherScanCard';
+import StudentPhotoUpload from '@/components/attendance/StudentPhotoUpload';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,12 +29,23 @@ import {
 import { Users, UserCheck, Clock, UserX, Download, Calendar } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
+// ========================================
+// MAIN COMPONENT
+// ========================================
+
 const AdminDashboard = () => {
+  // Export filter state (daily, weekly, monthly)
   const [exportFilter, setExportFilter] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  
+  // Get dashboard data
   const stats = getDashboardStats();
   const weeklyData = getWeeklySummary();
   const todayRecords = getRecordsForExport('daily');
 
+  /**
+   * Handle CSV export
+   * Exports attendance records based on selected filter
+   */
   const handleExport = () => {
     const records = getRecordsForExport(exportFilter);
     exportToCSV(records);
@@ -32,6 +56,7 @@ const AdminDashboard = () => {
       <Header />
 
       <main className="container py-8">
+        {/* Page Header */}
         <div className="mb-8">
           <h1 className="text-2xl md:text-3xl font-bold font-display mb-2">Admin Dashboard</h1>
           <p className="text-muted-foreground">
@@ -41,7 +66,9 @@ const AdminDashboard = () => {
           </p>
         </div>
 
-        {/* Stats Grid */}
+        {/* ========================================
+            STATISTICS CARDS
+        ======================================== */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
             title="Total Students"
@@ -70,13 +97,18 @@ const AdminDashboard = () => {
           />
         </div>
 
-        {/* Scan Students Card */}
+        {/* ========================================
+            SCAN STUDENTS CARD
+        ======================================== */}
         <div className="mb-8">
           <TeacherScanCard />
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Chart Section */}
+        {/* ========================================
+            CHART, EXPORT, AND PHOTO UPLOAD
+        ======================================== */}
+        <div className="grid lg:grid-cols-3 gap-6 mb-8">
+          {/* Weekly Chart */}
           <div className="lg:col-span-2">
             <Card className="p-6 card-shadow">
               <h2 className="text-lg font-semibold font-display mb-4 flex items-center gap-2">
@@ -105,8 +137,9 @@ const AdminDashboard = () => {
             </Card>
           </div>
 
-          {/* Export */}
+          {/* Export and Photo Upload */}
           <div className="space-y-6">
+            {/* Export Card */}
             <Card className="p-6 card-shadow">
               <h3 className="font-semibold font-display mb-4">Export Reports</h3>
               <div className="space-y-3">
@@ -129,11 +162,16 @@ const AdminDashboard = () => {
                 </Button>
               </div>
             </Card>
+
+            {/* Student Photo Upload */}
+            <StudentPhotoUpload />
           </div>
         </div>
 
-        {/* Today's Attendance Table */}
-        <Card className="mt-8 card-shadow">
+        {/* ========================================
+            TODAY'S ATTENDANCE TABLE
+        ======================================== */}
+        <Card className="card-shadow">
           <div className="p-6 border-b border-border">
             <h2 className="text-lg font-semibold font-display">Today's Attendance</h2>
           </div>
@@ -166,20 +204,32 @@ const AdminDashboard = () => {
   );
 };
 
+// ========================================
+// ATTENDANCE TABLE COMPONENT
+// ========================================
+
 interface AttendanceTableProps {
   records: ReturnType<typeof getRecordsForExport>;
   students: typeof import('@/lib/attendanceData').students;
   filter: 'all' | 'PRESENT' | 'LATE_PRESENT' | 'ABSENT';
 }
 
+/**
+ * AttendanceTable - Displays student attendance in a table format
+ * Filters students based on the selected filter tab
+ */
 const AttendanceTable = ({ records, students: allStudents, filter }: AttendanceTableProps) => {
   const today = new Date().toISOString().split('T')[0];
   
+  /**
+   * Get attendance status for a student
+   */
   const getStudentStatus = (studentId: string) => {
     const record = records.find(r => r.studentId === studentId && r.date === today);
     return record ? record : null;
   };
 
+  // Filter students based on selected tab
   const filteredStudents = allStudents.filter(student => {
     const record = getStudentStatus(student.id);
     if (filter === 'all') return true;
@@ -187,6 +237,7 @@ const AttendanceTable = ({ records, students: allStudents, filter }: AttendanceT
     return record?.status === filter;
   });
 
+  // Empty state
   if (filteredStudents.length === 0) {
     return (
       <div className="p-8 text-center text-muted-foreground">

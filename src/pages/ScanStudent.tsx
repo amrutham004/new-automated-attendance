@@ -1,20 +1,40 @@
+/**
+ * ScanStudent.tsx - QR Scanner with Face Capture
+ * 
+ * This page allows teachers to:
+ * 1. Scan a student's QR code
+ * 2. If valid, capture the student's face photo (mandatory)
+ * 3. Save attendance with the face capture
+ * 
+ * Flow: Scanning → Face Capture → Result
+ */
+
 import { useState } from 'react';
 import Header from '@/components/attendance/Header';
 import StatusBadge from '@/components/attendance/StatusBadge';
+import FaceCapture from '@/components/attendance/FaceCapture';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { 
   validateStudentQR, 
   markAttendanceFromScan,
-  QR_VALIDITY_SECONDS 
+  saveFaceCapture,
+  QR_VALIDITY_SECONDS,
+  getStudentById
 } from '@/lib/attendanceData';
 import { AttendanceStatus } from '@/types/attendance';
-import { CheckCircle, XCircle, AlertCircle, ArrowLeft, ScanLine, Clock } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, ArrowLeft, ScanLine, Clock, Camera } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Scanner } from '@yudiel/react-qr-scanner';
 
-type Step = 'scanning' | 'result';
+// ========================================
+// TYPE DEFINITIONS
+// ========================================
 
+// Possible steps in the attendance flow
+type Step = 'scanning' | 'face-capture' | 'result';
+
+// Result of the attendance marking
 interface ResultState {
   success: boolean;
   message: string;
@@ -23,12 +43,31 @@ interface ResultState {
   expired?: boolean;
 }
 
-const ScanStudent = () => {
-  const [step, setStep] = useState<Step>('scanning');
-  const [result, setResult] = useState<ResultState | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [scanError, setScanError] = useState('');
+// ========================================
+// MAIN COMPONENT
+// ========================================
 
+const ScanStudent = () => {
+  // Current step in the flow
+  const [step, setStep] = useState<Step>('scanning');
+  
+  // Result of attendance marking
+  const [result, setResult] = useState<ResultState | null>(null);
+  
+  // Processing state for QR validation
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Any errors from camera/scanning
+  const [scanError, setScanError] = useState('');
+  
+  // Student info from validated QR
+  const [validatedStudentId, setValidatedStudentId] = useState<string>('');
+  const [validatedStudentName, setValidatedStudentName] = useState<string>('');
+
+  /**
+   * Handle successful QR code scan
+   * Called by the Scanner component when a QR is detected
+   */
   const handleScanSuccess = (detectedCodes: { rawValue: string }[]) => {
     if (isProcessing) return;
     if (detectedCodes.length > 0 && detectedCodes[0].rawValue) {
@@ -36,6 +75,10 @@ const ScanStudent = () => {
     }
   };
 
+  /**
+   * Process the scanned QR code
+   * Validates the QR and transitions to face capture if valid
+   */
   const processScannedQR = (qrData: string) => {
     setIsProcessing(true);
     
@@ -43,6 +86,7 @@ const ScanStudent = () => {
     const validation = validateStudentQR(qrData);
     
     if (!validation.valid) {
+      // QR validation failed - show error result
       setResult({
         success: false,
         message: validation.error || 'Invalid QR code',
@@ -53,23 +97,67 @@ const ScanStudent = () => {
       return;
     }
 
+    // QR is valid - get student info and proceed to face capture
+    const student = getStudentById(validation.studentId!);
+    if (student) {
+      setValidatedStudentId(validation.studentId!);
+      setValidatedStudentName(student.name);
+      setStep('face-capture');
+    } else {
+      setResult({
+        success: false,
+        message: 'Student not found in system'
+      });
+      setStep('result');
+    }
+    
+    setIsProcessing(false);
+  };
+
+  /**
+   * Handle face capture completion
+   * Saves the face image and marks attendance
+   */
+  const handleFaceCapture = (imageData: string) => {
+    // Get today's date
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Save the face capture image
+    saveFaceCapture(validatedStudentId, today, imageData);
+    
     // Mark attendance
-    const attendanceResult = markAttendanceFromScan(validation.studentId!);
+    const attendanceResult = markAttendanceFromScan(validatedStudentId);
+    
     setResult({
       success: attendanceResult.success,
       message: attendanceResult.message,
       status: attendanceResult.status,
       studentName: attendanceResult.studentName
     });
+    
     setStep('result');
-    setIsProcessing(false);
   };
 
+  /**
+   * Handle face capture cancellation
+   * Goes back to scanning without marking attendance
+   */
+  const handleCancelFaceCapture = () => {
+    setValidatedStudentId('');
+    setValidatedStudentName('');
+    setStep('scanning');
+  };
+
+  /**
+   * Reset to scan another student
+   */
   const handleReset = () => {
     setStep('scanning');
     setResult(null);
     setScanError('');
     setIsProcessing(false);
+    setValidatedStudentId('');
+    setValidatedStudentName('');
   };
 
   return (
@@ -77,6 +165,7 @@ const ScanStudent = () => {
       <Header />
 
       <main className="container py-8 max-w-lg">
+        {/* Back button */}
         <Button variant="ghost" size="sm" asChild className="mb-6">
           <Link to="/admin" className="flex items-center gap-2">
             <ArrowLeft size={16} />
@@ -84,6 +173,9 @@ const ScanStudent = () => {
           </Link>
         </Button>
 
+        {/* ========================================
+            STEP 1: QR SCANNING
+        ======================================== */}
         {step === 'scanning' && (
           <div className="space-y-6 animate-fade-in">
             <div className="text-center">
@@ -94,6 +186,7 @@ const ScanStudent = () => {
             </div>
 
             <Card className="p-4 card-shadow overflow-hidden">
+              {/* Camera view for QR scanning */}
               <div className="aspect-square rounded-lg overflow-hidden bg-black relative">
                 <Scanner
                   onScan={handleScanSuccess}
@@ -105,16 +198,18 @@ const ScanStudent = () => {
                   }}
                 />
                 
-                {/* Scanning overlay */}
+                {/* Scanning overlay guide */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="w-48 h-48 border-2 border-primary rounded-lg opacity-50" />
                 </div>
               </div>
               
+              {/* Error message */}
               {scanError && (
                 <p className="mt-3 text-sm text-danger text-center">{scanError}</p>
               )}
               
+              {/* Processing indicator */}
               {isProcessing && (
                 <div className="mt-4 text-center">
                   <div className="animate-pulse-soft text-primary font-medium">
@@ -124,7 +219,7 @@ const ScanStudent = () => {
               )}
             </Card>
 
-            {/* Info Card */}
+            {/* Info about QR expiration */}
             <Card className="p-4 card-shadow bg-muted/50">
               <div className="flex items-start gap-3">
                 <Clock size={20} className="text-warning flex-shrink-0 mt-0.5" />
@@ -137,26 +232,62 @@ const ScanStudent = () => {
                 </div>
               </div>
             </Card>
+
+            {/* Info about face capture requirement */}
+            <Card className="p-4 card-shadow bg-primary/5">
+              <div className="flex items-start gap-3">
+                <Camera size={20} className="text-primary flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-sm">Face Capture Required</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    After a valid QR scan, you'll need to capture the student's face photo.
+                  </p>
+                </div>
+              </div>
+            </Card>
           </div>
         )}
 
+        {/* ========================================
+            STEP 2: FACE CAPTURE (Mandatory)
+        ======================================== */}
+        {step === 'face-capture' && (
+          <div className="animate-fade-in">
+            <FaceCapture
+              studentName={validatedStudentName}
+              onCapture={handleFaceCapture}
+              onCancel={handleCancelFaceCapture}
+            />
+          </div>
+        )}
+
+        {/* ========================================
+            STEP 3: RESULT DISPLAY
+        ======================================== */}
         {step === 'result' && (
           <div className="animate-scale-in">
             <Card className="p-8 card-shadow text-center">
               {result?.success ? (
+                /* Success state */
                 <div className="space-y-4">
                   <div className="w-20 h-20 mx-auto rounded-full bg-success/10 flex items-center justify-center">
                     <CheckCircle size={40} className="text-success" />
                   </div>
-                  <h2 className="text-xl font-bold font-display text-success">Attendance Recorded!</h2>
+                  <h2 className="text-xl font-bold font-display text-success">
+                    Attendance Recorded!
+                  </h2>
                   <p className="text-muted-foreground">{result.message}</p>
                   {result.status && (
                     <div className="flex justify-center">
                       <StatusBadge status={result.status} />
                     </div>
                   )}
+                  <p className="text-sm text-muted-foreground">
+                    Face photo has been saved with this attendance record.
+                  </p>
                 </div>
               ) : (
+                /* Error state */
                 <div className="space-y-4">
                   <div className="w-20 h-20 mx-auto rounded-full bg-danger/10 flex items-center justify-center">
                     {result?.expired ? (
@@ -174,6 +305,7 @@ const ScanStudent = () => {
                 </div>
               )}
 
+              {/* Scan next student button */}
               <div className="mt-8">
                 <Button 
                   onClick={handleReset} 
