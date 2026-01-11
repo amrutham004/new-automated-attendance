@@ -1,110 +1,146 @@
+/**
+ * Index.tsx - 3D Landing Page
+ * 
+ * Features:
+ * - Interactive 3D background scene
+ * - Floating glass cards with 3D tilt
+ * - Glassmorphism UI elements
+ * - Animated content transitions
+ */
+
 import { Link } from 'react-router-dom';
-import SchoolLogo from '@/components/attendance/SchoolLogo';
 import Header from '@/components/attendance/Header';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { ClipboardCheck, LayoutDashboard, Users, Clock } from 'lucide-react';
+import Scene3D from '@/components/3d/Scene3D';
+import FloatingCard from '@/components/3d/FloatingCard';
+import GlassButton from '@/components/3d/GlassButton';
+import { ClipboardCheck, LayoutDashboard, Users, Clock, Sparkles } from 'lucide-react';
 import { CUTOFF_TIME } from '@/lib/attendanceData';
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
+      {/* 3D Background Scene */}
+      <Scene3D />
+      
+      {/* Header with glass effect */}
       <Header />
       
-      <main className="container py-8 md:py-12">
-        {/* Hero Section */}
+      <main className="container relative z-10 py-8 md:py-12">
+        {/* Hero Section with 3D styling */}
         <div className="text-center mb-10 md:mb-16 animate-fade-in">
-          <div className="flex justify-center mb-6">
-            <SchoolLogo size="large" />
+          {/* Glowing Logo Container */}
+          <div className="relative inline-block mb-6">
+            <div className="absolute inset-0 bg-cyan-500/30 blur-3xl rounded-full animate-pulse" />
+            <div className="relative w-24 h-24 md:w-32 md:h-32 mx-auto rounded-full bg-gradient-to-br from-cyan-400 to-teal-500 p-1 shadow-2xl shadow-cyan-500/50">
+              <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center">
+                <Sparkles className="w-12 h-12 md:w-16 md:h-16 text-cyan-400" />
+              </div>
+            </div>
           </div>
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold font-display text-foreground mb-3">
-            Rural School
+          
+          {/* Title with gradient text */}
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold font-display mb-4 bg-gradient-to-r from-cyan-300 via-teal-200 to-cyan-300 bg-clip-text text-transparent">
+            AttendaGo
           </h1>
-          <p className="text-lg md:text-xl text-muted-foreground mb-2">
+          <p className="text-xl md:text-2xl text-cyan-100/80 mb-3 font-light">
             Automated Attendance System
           </p>
-          <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
+          <p className="text-sm text-cyan-200/60 flex items-center justify-center gap-2">
             <Clock size={14} />
-            Cutoff time for on-time attendance: {CUTOFF_TIME} AM
+            Cutoff time: {CUTOFF_TIME} AM
           </p>
         </div>
 
-        {/* Main CTA */}
-        <div className="flex justify-center mb-12">
-          <Button 
-            size="lg" 
-            className="gradient-primary text-primary-foreground px-8 py-6 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
-            asChild
-          >
-            <Link to="/mark-attendance" className="flex items-center gap-3">
-              <ClipboardCheck size={24} />
-              Mark Attendance
-            </Link>
-          </Button>
+        {/* Main CTA with 3D glass button */}
+        <div className="flex justify-center mb-16">
+          <GlassButton to="/mark-attendance" size="large">
+            <ClipboardCheck size={24} />
+            Mark Attendance
+          </GlassButton>
         </div>
 
-        {/* Quick Access Cards */}
-        <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-          <Card className="p-6 card-shadow hover:card-shadow-lg transition-all duration-200 hover:-translate-y-1">
+        {/* Quick Access Cards with 3D hover effect */}
+        <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto mb-16">
+          <FloatingCard glowColor="rgba(34, 211, 238, 0.3)">
             <div className="flex items-start gap-4">
-              <div className="p-3 rounded-lg bg-primary/10 text-primary">
-                <LayoutDashboard size={24} />
+              <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border border-cyan-500/30">
+                <LayoutDashboard size={28} className="text-cyan-400" />
               </div>
               <div className="flex-1">
-                <h2 className="text-lg font-semibold font-display mb-1">Admin Dashboard</h2>
-                <p className="text-sm text-muted-foreground mb-4">
+                <h2 className="text-xl font-semibold font-display mb-2 text-white">
+                  Admin Dashboard
+                </h2>
+                <p className="text-sm text-cyan-100/70 mb-4">
                   View attendance statistics, reports, and manage student records.
                 </p>
-                <Button variant="outline" size="sm" asChild>
-                  <Link to="/admin">Open Dashboard</Link>
-                </Button>
+                <GlassButton to="/admin" variant="secondary">
+                  Open Dashboard
+                </GlassButton>
               </div>
             </div>
-          </Card>
+          </FloatingCard>
 
-          <Card className="p-6 card-shadow hover:card-shadow-lg transition-all duration-200 hover:-translate-y-1">
+          <FloatingCard glowColor="rgba(168, 85, 247, 0.3)">
             <div className="flex items-start gap-4">
-              <div className="p-3 rounded-lg bg-accent text-accent-foreground">
-                <Users size={24} />
+              <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30">
+                <Users size={28} className="text-purple-400" />
               </div>
               <div className="flex-1">
-                <h2 className="text-lg font-semibold font-display mb-1">Student Portal</h2>
-                <p className="text-sm text-muted-foreground mb-4">
+                <h2 className="text-xl font-semibold font-display mb-2 text-white">
+                  Student Portal
+                </h2>
+                <p className="text-sm text-purple-100/70 mb-4">
                   Check your attendance history and view your attendance percentage.
                 </p>
-                <Button variant="outline" size="sm" asChild>
-                  <Link to="/student">View My Attendance</Link>
-                </Button>
+                <GlassButton to="/student" variant="secondary">
+                  View My Attendance
+                </GlassButton>
               </div>
             </div>
-          </Card>
+          </FloatingCard>
         </div>
 
-        {/* Features Section */}
-        <div className="mt-16 text-center">
-          <h2 className="text-xl font-semibold font-display mb-6 text-foreground">How It Works</h2>
-          <div className="grid sm:grid-cols-3 gap-6 max-w-3xl mx-auto">
-            <div className="p-4">
-              <div className="w-12 h-12 rounded-full bg-primary/10 text-primary mx-auto mb-3 flex items-center justify-center font-bold font-display">
-                1
+        {/* How It Works - 3D Steps */}
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold font-display mb-8 text-cyan-100">
+            How It Works
+          </h2>
+          <div className="grid sm:grid-cols-3 gap-6 max-w-4xl mx-auto">
+            {[
+              { num: 1, title: 'Enter Student ID', desc: 'Students enter their unique ID' },
+              { num: 2, title: 'Scan QR Code', desc: 'Scan the daily attendance QR' },
+              { num: 3, title: 'Capture Face', desc: 'Take a photo for verification' },
+            ].map((step) => (
+              <div 
+                key={step.num}
+                className="
+                  relative p-6 
+                  bg-white/5 backdrop-blur-sm
+                  border border-white/10 
+                  rounded-2xl
+                  transition-all duration-300
+                  hover:bg-white/10 hover:border-white/20
+                  hover:-translate-y-2
+                  group
+                "
+              >
+                {/* Step number with glow */}
+                <div className="
+                  w-14 h-14 mx-auto mb-4
+                  rounded-full 
+                  bg-gradient-to-br from-cyan-500 to-teal-500
+                  flex items-center justify-center 
+                  font-bold font-display text-xl text-white
+                  shadow-lg shadow-cyan-500/30
+                  group-hover:shadow-cyan-500/50
+                  transition-shadow duration-300
+                ">
+                  {step.num}
+                </div>
+                <h3 className="font-semibold text-lg mb-2 text-white">{step.title}</h3>
+                <p className="text-sm text-cyan-100/60">{step.desc}</p>
               </div>
-              <h3 className="font-medium mb-1">Enter Student ID</h3>
-              <p className="text-sm text-muted-foreground">Students enter their unique ID</p>
-            </div>
-            <div className="p-4">
-              <div className="w-12 h-12 rounded-full bg-primary/10 text-primary mx-auto mb-3 flex items-center justify-center font-bold font-display">
-                2
-              </div>
-              <h3 className="font-medium mb-1">Enter Token</h3>
-              <p className="text-sm text-muted-foreground">Scan QR or enter daily token</p>
-            </div>
-            <div className="p-4">
-              <div className="w-12 h-12 rounded-full bg-primary/10 text-primary mx-auto mb-3 flex items-center justify-center font-bold font-display">
-                3
-              </div>
-              <h3 className="font-medium mb-1">Attendance Recorded</h3>
-              <p className="text-sm text-muted-foreground">Status updated automatically</p>
-            </div>
+            ))}
           </div>
         </div>
       </main>
