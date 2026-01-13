@@ -1,5 +1,5 @@
 /**
- * ScanStudent.tsx - QR Scanner with Face Capture
+ * ScanStudent.tsx - QR Scanner with Face Capture (3D Design)
  * 
  * This page allows teachers to:
  * 1. Scan a student's QR code
@@ -12,10 +12,11 @@
 import { useState } from 'react';
 import Header from '@/components/attendance/Header';
 import Footer from '@/components/attendance/Footer';
+import Scene3D from '@/components/3d/Scene3D';
+import FloatingCard from '@/components/3d/FloatingCard';
+import GlassButton from '@/components/3d/GlassButton';
 import StatusBadge from '@/components/attendance/StatusBadge';
 import FaceCapture from '@/components/attendance/FaceCapture';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { 
   validateStudentQR, 
   markAttendanceFromScan,
@@ -162,33 +163,43 @@ const ScanStudent = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
+      {/* 3D Background */}
+      <Scene3D />
       <Header />
 
-      <main className="container py-8 max-w-lg">
+      <main className="container relative z-10 py-8 max-w-lg">
         {/* Back button */}
-        <Button variant="ghost" size="sm" asChild className="mb-6">
-          <Link to="/admin" className="flex items-center gap-2">
-            <ArrowLeft size={16} />
-            Back to Dashboard
-          </Link>
-        </Button>
+        <Link 
+          to="/admin" 
+          className="inline-flex items-center gap-2 text-cyan-300/70 hover:text-cyan-300 transition-colors mb-6"
+        >
+          <ArrowLeft size={16} />
+          Back to Dashboard
+        </Link>
 
         {/* ========================================
             STEP 1: QR SCANNING
         ======================================== */}
         {step === 'scanning' && (
           <div className="space-y-6 animate-fade-in">
+            {/* Page Header */}
             <div className="text-center">
-              <h1 className="text-2xl font-bold font-display mb-2">Scan Student QR</h1>
-              <p className="text-muted-foreground">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center">
+                <ScanLine size={32} className="text-purple-400" />
+              </div>
+              <h1 className="text-2xl font-bold font-display bg-gradient-to-r from-cyan-300 to-teal-300 bg-clip-text text-transparent mb-2">
+                Scan Student QR
+              </h1>
+              <p className="text-cyan-100/70">
                 Point the camera at the student's QR code
               </p>
             </div>
 
-            <Card className="p-4 card-shadow overflow-hidden">
+            {/* Scanner Card */}
+            <FloatingCard>
               {/* Camera view for QR scanning */}
-              <div className="aspect-square rounded-lg overflow-hidden bg-black relative">
+              <div className="aspect-square rounded-xl overflow-hidden bg-black relative">
                 <Scanner
                   onScan={handleScanSuccess}
                   onError={(error) => setScanError(error instanceof Error ? error.message : 'Camera error')}
@@ -201,51 +212,51 @@ const ScanStudent = () => {
                 
                 {/* Scanning overlay guide */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-48 h-48 border-2 border-primary rounded-lg opacity-50" />
+                  <div className="w-48 h-48 border-2 border-cyan-400 rounded-xl opacity-60 shadow-lg shadow-cyan-500/30" />
                 </div>
               </div>
               
               {/* Error message */}
               {scanError && (
-                <p className="mt-3 text-sm text-danger text-center">{scanError}</p>
+                <p className="mt-4 text-sm text-red-400 text-center">{scanError}</p>
               )}
               
               {/* Processing indicator */}
               {isProcessing && (
                 <div className="mt-4 text-center">
-                  <div className="animate-pulse-soft text-primary font-medium">
+                  <div className="animate-pulse text-cyan-400 font-medium">
                     Processing...
                   </div>
                 </div>
               )}
-            </Card>
+            </FloatingCard>
 
             {/* Info about QR expiration */}
-            <Card className="p-4 card-shadow bg-muted/50">
+            <FloatingCard glowColor="rgba(234, 179, 8, 0.2)">
               <div className="flex items-start gap-3">
-                <Clock size={20} className="text-warning flex-shrink-0 mt-0.5" />
+                <Clock size={20} className="text-yellow-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-medium text-sm">Time-Limited QR Codes</p>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className="font-medium text-sm text-white">Time-Limited QR Codes</p>
+                  <p className="text-sm text-cyan-100/70 mt-1">
                     Student QR codes expire in {QR_VALIDITY_SECONDS} seconds. 
                     Ensure students show a fresh code.
                   </p>
                 </div>
               </div>
-            </Card>
+            </FloatingCard>
 
             {/* Info about face capture requirement */}
-            <Card className="p-4 card-shadow bg-primary/5">
+            <FloatingCard glowColor="rgba(34, 211, 238, 0.2)">
               <div className="flex items-start gap-3">
-                <Camera size={20} className="text-primary flex-shrink-0 mt-0.5" />
+                <Camera size={20} className="text-cyan-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-medium text-sm">Face Capture Required</p>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className="font-medium text-sm text-white">Face Capture Required</p>
+                  <p className="text-sm text-cyan-100/70 mt-1">
                     After a valid QR scan, you'll need to capture the student's face photo.
                   </p>
                 </div>
               </div>
-            </Card>
+            </FloatingCard>
           </div>
         )}
 
@@ -267,57 +278,55 @@ const ScanStudent = () => {
         ======================================== */}
         {step === 'result' && (
           <div className="animate-scale-in">
-            <Card className="p-8 card-shadow text-center">
-              {result?.success ? (
-                /* Success state */
-                <div className="space-y-4">
-                  <div className="w-20 h-20 mx-auto rounded-full bg-success/10 flex items-center justify-center">
-                    <CheckCircle size={40} className="text-success" />
-                  </div>
-                  <h2 className="text-xl font-bold font-display text-success">
-                    Attendance Recorded!
-                  </h2>
-                  <p className="text-muted-foreground">{result.message}</p>
-                  {result.status && (
-                    <div className="flex justify-center">
-                      <StatusBadge status={result.status} />
+            <FloatingCard glowColor={result?.success ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"}>
+              <div className="text-center space-y-4">
+                {result?.success ? (
+                  /* Success state */
+                  <>
+                    <div className="w-20 h-20 mx-auto rounded-full bg-green-500/20 flex items-center justify-center">
+                      <CheckCircle size={40} className="text-green-400" />
                     </div>
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    Face photo has been saved with this attendance record.
-                  </p>
-                </div>
-              ) : (
-                /* Error state */
-                <div className="space-y-4">
-                  <div className="w-20 h-20 mx-auto rounded-full bg-danger/10 flex items-center justify-center">
-                    {result?.expired ? (
-                      <Clock size={40} className="text-warning" />
-                    ) : result?.message.includes('already') ? (
-                      <AlertCircle size={40} className="text-warning" />
-                    ) : (
-                      <XCircle size={40} className="text-danger" />
+                    <h2 className="text-xl font-bold font-display text-green-400">
+                      Attendance Recorded!
+                    </h2>
+                    <p className="text-cyan-100/70">{result.message}</p>
+                    {result.status && (
+                      <div className="flex justify-center">
+                        <StatusBadge status={result.status} />
+                      </div>
                     )}
-                  </div>
-                  <h2 className="text-xl font-bold font-display text-danger">
-                    {result?.expired ? 'QR Expired' : result?.message.includes('already') ? 'Already Recorded' : 'Error'}
-                  </h2>
-                  <p className="text-muted-foreground">{result?.message}</p>
-                </div>
-              )}
+                    <p className="text-sm text-cyan-200/60">
+                      Face photo has been saved with this attendance record.
+                    </p>
+                  </>
+                ) : (
+                  /* Error state */
+                  <>
+                    <div className="w-20 h-20 mx-auto rounded-full bg-red-500/20 flex items-center justify-center">
+                      {result?.expired ? (
+                        <Clock size={40} className="text-yellow-400" />
+                      ) : result?.message.includes('already') ? (
+                        <AlertCircle size={40} className="text-yellow-400" />
+                      ) : (
+                        <XCircle size={40} className="text-red-400" />
+                      )}
+                    </div>
+                    <h2 className="text-xl font-bold font-display text-red-400">
+                      {result?.expired ? 'QR Expired' : result?.message.includes('already') ? 'Already Recorded' : 'Error'}
+                    </h2>
+                    <p className="text-cyan-100/70">{result?.message}</p>
+                  </>
+                )}
 
-              {/* Scan next student button */}
-              <div className="mt-8">
-                <Button 
-                  onClick={handleReset} 
-                  className="w-full gradient-primary text-primary-foreground"
-                  size="lg"
-                >
-                  <ScanLine size={18} className="mr-2" />
-                  Scan Next Student
-                </Button>
+                {/* Scan next student button */}
+                <div className="mt-8">
+                  <GlassButton onClick={handleReset} className="w-full">
+                    <ScanLine size={18} />
+                    Scan Next Student
+                  </GlassButton>
+                </div>
               </div>
-            </Card>
+            </FloatingCard>
           </div>
         )}
       </main>
