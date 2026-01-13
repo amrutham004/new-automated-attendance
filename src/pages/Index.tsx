@@ -38,10 +38,6 @@ const Index = () => {
             </div>
           </div>
           
-          {/* Title with gradient text */}
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold font-display mb-4 bg-gradient-to-r from-cyan-300 via-teal-200 to-cyan-300 bg-clip-text text-transparent">
-            AttendaGo
-          </h1>
           <p className="text-xl md:text-2xl text-cyan-100/80 mb-3 font-light">
             Automated Attendance System
           </p>
