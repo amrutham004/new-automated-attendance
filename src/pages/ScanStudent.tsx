@@ -11,6 +11,7 @@
 
 import { useState } from 'react';
 import Header from '@/components/attendance/Header';
+import Footer from '@/components/attendance/Footer';
 import StatusBadge from '@/components/attendance/StatusBadge';
 import FaceCapture from '@/components/attendance/FaceCapture';
 import { Button } from '@/components/ui/button';
@@ -320,6 +321,8 @@ const ScanStudent = () => {
           </div>
         )}
       </main>
+
+      <Footer />
     </div>
   );
 };

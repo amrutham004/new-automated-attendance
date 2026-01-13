@@ -11,6 +11,7 @@
 
 import { useState } from 'react';
 import Header from '@/components/attendance/Header';
+import Footer from '@/components/attendance/Footer';
 import Scene3D from '@/components/3d/Scene3D';
 import FloatingCard from '@/components/3d/FloatingCard';
 import GlassButton from '@/components/3d/GlassButton';
@@ -216,6 +217,8 @@ const AdminDashboard = () => {
           </Tabs>
         </FloatingCard>
       </main>
+
+      <Footer />
     </div>
   );
 };
