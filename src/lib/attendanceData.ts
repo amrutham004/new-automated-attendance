@@ -48,6 +48,19 @@ export const QR_REFRESH_INTERVAL = 5000;
 const ATTENDANCE_KEY = 'attendance_records';
 const STUDENT_PHOTOS_KEY = 'student_photos';
 const FACE_CAPTURES_KEY = 'face_captures';
+const ATTENDANCE_TOKENS_KEY = 'attendance_tokens';
+
+// ========================================
+// ATTENDANCE TOKEN TYPES
+// ========================================
+export interface AttendanceToken {
+  token: string;
+  studentId: string;
+  studentName: string;
+  expiryTimestamp: number;
+  isUsed: boolean;
+  createdAt: number;
+}
 
 // ========================================
 // STUDENT PHOTO MANAGEMENT
@@ -142,6 +155,184 @@ export const generateStudentQRData = (studentId: string): string => {
     ts: timestamp,
     h: hash
   });
+};
+
+// ========================================
+// ATTENDANCE TOKEN MANAGEMENT (URL-based)
+// For student-side QR scanning flow
+// ========================================
+
+/**
+ * Generate a unique token for URL-based attendance
+ * Stores token with student info, expiry, and used status
+ */
+export const generateAttendanceToken = (studentId: string): string => {
+  const student = students.find(s => s.id === studentId);
+  if (!student) return '';
+  
+  // Generate unique token
+  const timestamp = Date.now();
+  const randomPart = Math.random().toString(36).substring(2, 10);
+  const token = `${studentId}-${timestamp}-${randomPart}`;
+  
+  // Create token record
+  const tokenRecord: AttendanceToken = {
+    token,
+    studentId,
+    studentName: student.name,
+    expiryTimestamp: timestamp + (QR_VALIDITY_SECONDS * 1000),
+    isUsed: false,
+    createdAt: timestamp
+  };
+  
+  // Store token
+  const tokens = getAttendanceTokens();
+  // Remove old tokens for this student
+  const filteredTokens = tokens.filter(t => t.studentId !== studentId);
+  filteredTokens.push(tokenRecord);
+  saveAttendanceTokens(filteredTokens);
+  
+  return token;
+};
+
+/**
+ * Get all attendance tokens from localStorage
+ */
+const getAttendanceTokens = (): AttendanceToken[] => {
+  const stored = localStorage.getItem(ATTENDANCE_TOKENS_KEY);
+  return stored ? JSON.parse(stored) : [];
+};
+
+/**
+ * Save attendance tokens to localStorage
+ */
+const saveAttendanceTokens = (tokens: AttendanceToken[]): void => {
+  localStorage.setItem(ATTENDANCE_TOKENS_KEY, JSON.stringify(tokens));
+};
+
+/**
+ * Validate an attendance token from URL
+ * Returns student info if valid, error otherwise
+ */
+export const validateAttendanceToken = (token: string): {
+  valid: boolean;
+  studentId?: string;
+  studentName?: string;
+  error?: string;
+  expired?: boolean;
+  alreadyUsed?: boolean;
+} => {
+  const tokens = getAttendanceTokens();
+  const tokenRecord = tokens.find(t => t.token === token);
+  
+  if (!tokenRecord) {
+    return { valid: false, error: 'Invalid or expired token' };
+  }
+  
+  // Check if already used
+  if (tokenRecord.isUsed) {
+    return { 
+      valid: false, 
+      studentId: tokenRecord.studentId,
+      studentName: tokenRecord.studentName,
+      error: 'This attendance link has already been used',
+      alreadyUsed: true
+    };
+  }
+  
+  // Check if expired
+  const now = Date.now();
+  if (now > tokenRecord.expiryTimestamp) {
+    return { 
+      valid: false, 
+      studentId: tokenRecord.studentId,
+      studentName: tokenRecord.studentName,
+      error: 'This attendance link has expired. Please get a new QR code.',
+      expired: true 
+    };
+  }
+  
+  return { 
+    valid: true, 
+    studentId: tokenRecord.studentId,
+    studentName: tokenRecord.studentName 
+  };
+};
+
+/**
+ * Mark a token as used and record attendance
+ */
+export const useAttendanceToken = (token: string): {
+  success: boolean;
+  message: string;
+  studentId?: string;
+  studentName?: string;
+  status?: AttendanceStatus;
+} => {
+  const validation = validateAttendanceToken(token);
+  
+  if (!validation.valid) {
+    return { 
+      success: false, 
+      message: validation.error || 'Invalid token',
+      studentId: validation.studentId,
+      studentName: validation.studentName
+    };
+  }
+  
+  const { studentId, studentName } = validation;
+  
+  // Check if already marked today
+  if (hasMarkedAttendanceToday(studentId!)) {
+    return { 
+      success: false, 
+      message: `Attendance already recorded for ${studentName} today.`,
+      studentId,
+      studentName
+    };
+  }
+  
+  // Mark token as used
+  const tokens = getAttendanceTokens();
+  const updatedTokens = tokens.map(t => 
+    t.token === token ? { ...t, isUsed: true } : t
+  );
+  saveAttendanceTokens(updatedTokens);
+  
+  // Record attendance
+  const result = markAttendanceFromScan(studentId!);
+  
+  return {
+    success: result.success,
+    message: result.message,
+    studentId,
+    studentName,
+    status: result.status
+  };
+};
+
+/**
+ * Generate attendance URL for QR code
+ * Uses localhost for local development
+ */
+export const generateAttendanceURL = (studentId: string): string => {
+  const token = generateAttendanceToken(studentId);
+  if (!token) return '';
+  
+  // Use localhost for local development
+  const baseUrl = `http://localhost:8080`;
+  return `${baseUrl}/verify-attendance?token=${token}`;
+};
+
+/**
+ * Check if attendance is pending (token used but no face capture)
+ */
+export const isAttendancePendingFaceCapture = (studentId: string, date: string): boolean => {
+  const faceCapture = getFaceCapture(studentId, date);
+  const records = getAttendanceRecords();
+  const hasAttendance = records.some(r => r.studentId === studentId && r.date === date);
+  
+  return hasAttendance && !faceCapture;
 };
 
 // ========================================

@@ -22,6 +22,9 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import MarkAttendance from "./pages/MarkAttendance";
 import ScanStudent from "./pages/ScanStudent";
+import TeacherQRDisplay from "./pages/TeacherQRDisplay";
+import VerifyAttendance from "./pages/VerifyAttendance";
+import StudentFaceCapture from "./pages/StudentFaceCapture";
 import AdminDashboard from "./pages/AdminDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
 import NotFound from "./pages/NotFound";
@@ -42,10 +45,15 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/mark-attendance" element={<MarkAttendance />} />
           <Route path="/student" element={<StudentDashboard />} />
+          
+          {/* Student-side attendance flow (scanned from phone) */}
+          <Route path="/verify-attendance" element={<VerifyAttendance />} />
+          <Route path="/face-capture" element={<StudentFaceCapture />} />
 
           {/* Admin/Teacher routes - accessible by all */}
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/scan-student" element={<ScanStudent />} />
+          <Route path="/teacher-qr" element={<TeacherQRDisplay />} />
 
           {/* 404 page for unknown routes */}
           <Route path="*" element={<NotFound />} />

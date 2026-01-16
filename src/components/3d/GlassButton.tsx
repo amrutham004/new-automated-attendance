@@ -17,6 +17,7 @@ interface GlassButtonProps {
   variant?: 'primary' | 'secondary';
   size?: 'default' | 'large';
   className?: string;
+  disabled?: boolean;
 }
 
 const GlassButton = ({ 
@@ -25,7 +26,8 @@ const GlassButton = ({
   onClick, 
   variant = 'primary',
   size = 'default',
-  className = '' 
+  className = '',
+  disabled = false
 }: GlassButtonProps) => {
   // Base styles for glass effect
   const baseStyles = `
@@ -35,9 +37,7 @@ const GlassButton = ({
     rounded-xl
     overflow-hidden
     transition-all duration-300 ease-out
-    hover:scale-105 hover:-translate-y-1
-    active:scale-100 active:translate-y-0
-    cursor-pointer
+    ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 hover:-translate-y-1 active:scale-100 active:translate-y-0 cursor-pointer'}
     group
   `;
 
@@ -102,7 +102,7 @@ const GlassButton = ({
   }
 
   return (
-    <button onClick={onClick} className={combinedClassName}>
+    <button onClick={disabled ? undefined : onClick} disabled={disabled} className={combinedClassName}>
       {content}
     </button>
   );
