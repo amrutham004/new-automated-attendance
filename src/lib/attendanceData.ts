@@ -313,14 +313,14 @@ export const useAttendanceToken = (token: string): {
 
 /**
  * Generate attendance URL for QR code
- * Uses localhost:8080 for local development
+ * Uses local network IP for phone scanning
  */
 export const generateAttendanceURL = (studentId: string): string => {
   const token = generateAttendanceToken(studentId);
   if (!token) return '';
   
-  // Use localhost for local testing - students scan with phone and open this URL
-  const baseUrl = 'http://localhost:8080';
+  // Local network IP - phones on same network can access this
+  const baseUrl = 'http://192.168.1.100:8080';
   return `${baseUrl}/verify-attendance?token=${token}`;
 };
 
