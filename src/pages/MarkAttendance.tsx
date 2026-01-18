@@ -18,12 +18,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { 
-  generateStudentQRData, 
+  generateAttendanceURL, 
   getStudentById, 
   hasMarkedAttendanceToday,
   QR_VALIDITY_SECONDS 
 } from '@/lib/attendanceData';
-import { ArrowLeft, CheckCircle, Clock, Shield, QrCode } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock, Shield, QrCode, Smartphone } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -37,10 +37,10 @@ const MarkAttendance = () => {
   const [timeRemaining, setTimeRemaining] = useState(QR_VALIDITY_SECONDS);
   const [error, setError] = useState('');
 
-  // Generate new QR code
+  // Generate new QR code with URL for student scanning
   const generateNewQR = useCallback(() => {
-    const data = generateStudentQRData(studentId.toUpperCase());
-    setQrData(data);
+    const url = generateAttendanceURL(studentId.toUpperCase());
+    setQrData(url);
     setTimeRemaining(QR_VALIDITY_SECONDS);
   }, [studentId]);
 
@@ -149,7 +149,7 @@ const MarkAttendance = () => {
                 <div>
                   <p className="font-medium text-sm text-white">Secure Attendance</p>
                   <p className="text-sm text-purple-100/70 mt-1">
-                    Your QR code expires in 30 seconds. Show it to your teacher for scanning.
+                    Your QR code expires in 30 seconds. Scan it with your phone camera to mark attendance.
                   </p>
                 </div>
               </div>
@@ -164,7 +164,10 @@ const MarkAttendance = () => {
               <h1 className="text-2xl font-bold font-display bg-gradient-to-r from-cyan-300 to-teal-300 bg-clip-text text-transparent mb-2">
                 Your Attendance QR
               </h1>
-              <p className="text-cyan-100/70">Show this to your teacher for scanning</p>
+              <p className="text-cyan-100/70 flex items-center justify-center gap-2">
+                <Smartphone size={16} />
+                Scan with your phone camera to mark attendance
+              </p>
             </div>
 
             <FloatingCard>
