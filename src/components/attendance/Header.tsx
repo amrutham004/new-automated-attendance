@@ -11,7 +11,7 @@
 
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Home, ClipboardCheck, LayoutDashboard, User, Menu, X, ScanLine } from 'lucide-react';
+import { Home, ClipboardCheck, LayoutDashboard, User, Menu, X } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
 import { useState } from 'react';
 const Header = () => {
@@ -35,10 +35,6 @@ const Header = () => {
     to: '/admin',
     label: 'Admin Dashboard',
     icon: LayoutDashboard
-  }, {
-    to: '/scan-student',
-    label: 'Scan Student',
-    icon: ScanLine
   }];
 
   // Check if a nav link is currently active

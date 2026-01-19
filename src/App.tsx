@@ -21,7 +21,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import MarkAttendance from "./pages/MarkAttendance";
-import ScanStudent from "./pages/ScanStudent";
 import TeacherQRDisplay from "./pages/TeacherQRDisplay";
 import VerifyAttendance from "./pages/VerifyAttendance";
 import StudentFaceCapture from "./pages/StudentFaceCapture";
@@ -52,7 +51,6 @@ const App = () => (
 
           {/* Admin/Teacher routes - accessible by all */}
           <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/scan-student" element={<ScanStudent />} />
           <Route path="/teacher-qr" element={<TeacherQRDisplay />} />
 
           {/* 404 page for unknown routes */}
