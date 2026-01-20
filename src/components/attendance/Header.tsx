@@ -41,17 +41,17 @@ const Header = () => {
   const isActive = (path: string) => location.pathname === path;
   
   return (
-    <header className="sticky top-0 z-50 w-full bg-slate-900/80 backdrop-blur-xl border-b border-white/10">
+    <header className="sticky top-0 z-50 w-full bg-blue-900/80 backdrop-blur-xl border-b border-white/10">
       <div className="container flex h-16 items-center justify-between">
         {/* Logo and School Name */}
         <Link to="/" className="flex items-center gap-3 group">
           <img 
             src={logoImg} 
             alt="AttendaGo Logo" 
-            className="w-10 h-10 rounded-full shadow-lg shadow-cyan-500/30 group-hover:shadow-cyan-500/50 transition-shadow object-cover"
+            className="w-10 h-10 rounded-full shadow-lg shadow-teal-500/30 group-hover:shadow-teal-500/50 transition-shadow object-cover"
           />
           <div className="hidden sm:block">
-            <h1 className="text-lg font-bold font-display bg-gradient-to-r from-cyan-300 to-teal-300 bg-clip-text text-transparent">
+            <h1 className="text-lg font-bold font-display bg-gradient-to-r from-green-300 via-teal-300 to-blue-300 bg-clip-text text-transparent">
               AttendaGo
             </h1>
           </div>
@@ -66,7 +66,7 @@ const Header = () => {
               size="sm" 
               asChild
               className={`
-                text-cyan-100/70 hover:text-white hover:bg-white/10
+                text-teal-100/70 hover:text-white hover:bg-white/10
                 ${isActive(to) ? 'bg-white/10 text-white' : ''}
               `}
             >
@@ -82,7 +82,7 @@ const Header = () => {
         <Button 
           variant="ghost" 
           size="icon" 
-          className="md:hidden text-cyan-100 hover:text-white hover:bg-white/10" 
+          className="md:hidden text-teal-100 hover:text-white hover:bg-white/10" 
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         >
           {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
@@ -91,14 +91,14 @@ const Header = () => {
 
       {/* Mobile Navigation Menu */}
       {mobileMenuOpen && (
-        <nav className="md:hidden border-t border-white/10 bg-slate-900/95 backdrop-blur-xl animate-fade-in">
+        <nav className="md:hidden border-t border-white/10 bg-blue-900/95 backdrop-blur-xl animate-fade-in">
           <div className="container py-3 space-y-1">
             {navLinks.map(({ to, label, icon: Icon }) => (
               <Button 
                 key={to} 
                 variant="ghost" 
                 className={`
-                  w-full justify-start text-cyan-100/70 hover:text-white hover:bg-white/10
+                  w-full justify-start text-teal-100/70 hover:text-white hover:bg-white/10
                   ${isActive(to) ? 'bg-white/10 text-white' : ''}
                 `}
                 asChild 

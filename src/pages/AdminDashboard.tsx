@@ -43,17 +43,17 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-teal-800 to-emerald-900 text-white overflow-hidden">
       <Scene3D />
       <Header />
 
       <main className="container relative z-10 py-8">
         {/* Page Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold font-display bg-gradient-to-r from-cyan-300 to-teal-300 bg-clip-text text-transparent mb-2">
+          <h1 className="text-3xl font-bold font-display bg-gradient-to-r from-green-300 via-teal-300 to-blue-300 bg-clip-text text-transparent mb-2">
             Admin Dashboard
           </h1>
-          <p className="text-cyan-100/70">
+          <p className="text-teal-100/70">
             Overview for {new Date().toLocaleDateString('en-US', { 
               weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
             })}
@@ -63,7 +63,7 @@ const AdminDashboard = () => {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
-            { title: 'Total Students', value: stats.totalStudents, icon: Users, color: 'cyan' },
+            { title: 'Total Students', value: stats.totalStudents, icon: Users, color: 'teal' },
             { title: 'Present Today', value: stats.presentToday, subtitle: `${Math.round((stats.presentToday / stats.totalStudents) * 100)}%`, icon: UserCheck, color: 'green' },
             { title: 'Late Today', value: stats.lateToday, icon: Clock, color: 'yellow' },
             { title: 'Absent Today', value: stats.absentToday, icon: UserX, color: 'red' },
@@ -78,7 +78,7 @@ const AdminDashboard = () => {
             >
               <div className={`
                 w-10 h-10 rounded-lg mb-3 flex items-center justify-center
-                ${stat.color === 'cyan' ? 'bg-cyan-500/20 text-cyan-400' :
+                ${stat.color === 'teal' ? 'bg-teal-500/20 text-teal-400' :
                   stat.color === 'green' ? 'bg-green-500/20 text-green-400' :
                   stat.color === 'yellow' ? 'bg-yellow-500/20 text-yellow-400' :
                   'bg-red-500/20 text-red-400'}
@@ -86,7 +86,7 @@ const AdminDashboard = () => {
                 <stat.icon size={20} />
               </div>
               <p className="text-3xl font-bold text-white">{stat.value}</p>
-              <p className="text-sm text-cyan-200/60">{stat.title}</p>
+              <p className="text-sm text-teal-200/60">{stat.title}</p>
               {stat.subtitle && (
                 <p className="text-xs text-green-400 mt-1">{stat.subtitle}</p>
               )}
@@ -100,23 +100,23 @@ const AdminDashboard = () => {
           <div className="lg:col-span-2">
             <FloatingCard>
               <h2 className="text-lg font-semibold font-display mb-4 flex items-center gap-2 text-white">
-                <Calendar size={20} className="text-cyan-400" />
+                <Calendar size={20} className="text-teal-400" />
                 Weekly Attendance Summary
               </h2>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={weeklyData}>
-                    <XAxis dataKey="date" fontSize={12} stroke="#67e8f9" opacity={0.6} />
-                    <YAxis fontSize={12} stroke="#67e8f9" opacity={0.6} />
+                    <XAxis dataKey="date" fontSize={12} stroke="#5eead4" opacity={0.6} />
+                    <YAxis fontSize={12} stroke="#5eead4" opacity={0.6} />
                     <Tooltip 
                       contentStyle={{ 
                         borderRadius: '12px',
                         border: 'none',
-                        background: 'rgba(15, 23, 42, 0.9)',
+                        background: 'rgba(15, 45, 55, 0.9)',
                         backdropFilter: 'blur(10px)',
                         boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
                       }}
-                      labelStyle={{ color: '#67e8f9' }}
+                      labelStyle={{ color: '#5eead4' }}
                     />
                     <Legend />
                     <Bar dataKey="present" name="Present" fill="#22c55e" radius={[4, 4, 0, 0]} />
@@ -132,7 +132,7 @@ const AdminDashboard = () => {
           <div className="space-y-6">
             <FloatingCard>
               <h3 className="font-semibold font-display mb-4 text-white flex items-center gap-2">
-                <Download size={18} className="text-cyan-400" />
+                <Download size={18} className="text-teal-400" />
                 Export Reports
               </h3>
               <div className="space-y-3">
@@ -146,8 +146,8 @@ const AdminDashboard = () => {
                       className={`
                         flex-1 capitalize transition-all
                         ${exportFilter === filter 
-                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' 
-                          : 'text-cyan-200/60 hover:text-cyan-200 hover:bg-white/5'}
+                          ? 'bg-teal-500/20 text-teal-300 border-teal-500/30' 
+                          : 'text-teal-200/60 hover:text-teal-200 hover:bg-white/5'}
                       `}
                     >
                       {filter}
@@ -170,7 +170,7 @@ const AdminDashboard = () => {
           <h2 className="text-lg font-semibold font-display mb-4 text-white">Today's Attendance</h2>
           <Tabs defaultValue="all" className="w-full">
             <TabsList className="bg-white/5 border border-white/10">
-              <TabsTrigger value="all" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300">
+              <TabsTrigger value="all" className="data-[state=active]:bg-teal-500/20 data-[state=active]:text-teal-300">
                 All ({students.length})
               </TabsTrigger>
               <TabsTrigger value="present" className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300">
@@ -228,7 +228,7 @@ const AttendanceTable = ({ records, students: allStudents, filter }: AttendanceT
 
   if (filteredStudents.length === 0) {
     return (
-      <div className="py-8 text-center text-cyan-200/60">
+      <div className="py-8 text-center text-teal-200/60">
         No students in this category
       </div>
     );
@@ -239,19 +239,19 @@ const AttendanceTable = ({ records, students: allStudents, filter }: AttendanceT
       <table className="w-full">
         <thead>
           <tr className="border-b border-white/10">
-            <th className="px-4 py-3 text-left text-xs font-medium text-cyan-200/60 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-medium text-teal-200/60 uppercase tracking-wider">
               Student ID
             </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-cyan-200/60 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-medium text-teal-200/60 uppercase tracking-wider">
               Name
             </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-cyan-200/60 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-medium text-teal-200/60 uppercase tracking-wider">
               Grade
             </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-cyan-200/60 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-medium text-teal-200/60 uppercase tracking-wider">
               Time
             </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-cyan-200/60 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-medium text-teal-200/60 uppercase tracking-wider">
               Status
             </th>
           </tr>
@@ -261,10 +261,10 @@ const AttendanceTable = ({ records, students: allStudents, filter }: AttendanceT
             const record = getStudentStatus(student.id);
             return (
               <tr key={student.id} className="hover:bg-white/5 transition-colors">
-                <td className="px-4 py-4 text-sm font-mono text-cyan-300">{student.id}</td>
+                <td className="px-4 py-4 text-sm font-mono text-teal-300">{student.id}</td>
                 <td className="px-4 py-4 text-sm font-medium text-white">{student.name}</td>
-                <td className="px-4 py-4 text-sm text-cyan-200/70">{student.grade}</td>
-                <td className="px-4 py-4 text-sm text-cyan-200/70">{record?.time || '-'}</td>
+                <td className="px-4 py-4 text-sm text-teal-200/70">{student.grade}</td>
+                <td className="px-4 py-4 text-sm text-teal-200/70">{record?.time || '-'}</td>
                 <td className="px-4 py-4">
                   <StatusBadge status={record?.status || 'ABSENT'} size="small" />
                 </td>

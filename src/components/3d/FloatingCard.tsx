@@ -16,7 +16,7 @@ interface FloatingCardProps {
 const FloatingCard = ({
   children,
   className = '',
-  glowColor = 'rgba(34, 211, 238, 0.3)'
+  glowColor = 'rgba(45, 212, 191, 0.3)'
 }: FloatingCardProps) => {
   // Track mouse position for 3D tilt effect
   const [rotateX, setRotateX] = useState(0);

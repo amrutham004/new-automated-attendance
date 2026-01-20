@@ -56,17 +56,17 @@ const StudentDashboard = () => {
     : [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-teal-800 to-emerald-900 text-white overflow-hidden">
       <Scene3D />
       <Header />
 
       <main className="container relative z-10 py-8 max-w-4xl">
         {/* Page Header */}
         <div className="mb-8 text-center md:text-left">
-          <h1 className="text-3xl font-bold font-display bg-gradient-to-r from-cyan-300 to-teal-300 bg-clip-text text-transparent mb-2">
+          <h1 className="text-3xl font-bold font-display bg-gradient-to-r from-green-300 via-teal-300 to-blue-300 bg-clip-text text-transparent mb-2">
             Student Dashboard
           </h1>
-          <p className="text-cyan-100/70">
+          <p className="text-teal-100/70">
             View your attendance history and statistics
           </p>
         </div>
@@ -75,7 +75,7 @@ const StudentDashboard = () => {
         <FloatingCard className="mb-8">
           <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 space-y-2">
-              <Label htmlFor="studentSearch" className="text-cyan-100">Enter Your Student ID</Label>
+              <Label htmlFor="studentSearch" className="text-teal-100">Enter Your Student ID</Label>
               <Input
                 id="studentSearch"
                 placeholder="e.g., STU001"
@@ -83,7 +83,7 @@ const StudentDashboard = () => {
                 onChange={(e) => setStudentId(e.target.value)}
                 className="font-mono uppercase bg-white/10 border-white/20 text-white placeholder:text-white/40"
               />
-              <p className="text-xs text-cyan-200/60">
+              <p className="text-xs text-teal-200/60">
                 Demo IDs: {students.slice(0, 3).map(s => s.id).join(', ')}...
               </p>
             </div>
@@ -103,14 +103,14 @@ const StudentDashboard = () => {
         {searchedStudent && stats && (
           <div className="animate-fade-in space-y-6">
             {/* Student Header */}
-            <FloatingCard glowColor="rgba(34, 211, 238, 0.3)">
+            <FloatingCard glowColor="rgba(45, 212, 191, 0.3)">
               <div className="flex flex-col sm:flex-row items-center gap-6">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500 to-teal-500 flex items-center justify-center shadow-lg shadow-cyan-500/30">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-500 via-teal-500 to-blue-500 flex items-center justify-center shadow-lg shadow-teal-500/30">
                   <User size={36} className="text-white" />
                 </div>
                 <div className="text-center sm:text-left flex-1">
                   <h2 className="text-xl font-bold font-display text-white">{searchedStudent.name}</h2>
-                  <p className="text-cyan-200/70">
+                  <p className="text-teal-200/70">
                     ID: {searchedStudent.id} • Grade: {searchedStudent.grade}
                   </p>
                 </div>
@@ -142,7 +142,7 @@ const StudentDashboard = () => {
             {/* Stats Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { title: 'Total Days', value: stats.totalDays, icon: CalendarCheck, color: 'cyan' },
+                { title: 'Total Days', value: stats.totalDays, icon: CalendarCheck, color: 'teal' },
                 { title: 'Present', value: stats.daysPresent, icon: CalendarCheck, color: 'green' },
                 { title: 'Late', value: stats.daysLate, icon: Clock, color: 'yellow' },
                 { title: 'Absent', value: stats.daysAbsent, icon: CalendarX, color: 'red' },
@@ -152,13 +152,13 @@ const StudentDashboard = () => {
                   className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-colors"
                 >
                   <stat.icon size={20} className={`mb-2 ${
-                    stat.color === 'cyan' ? 'text-cyan-400' :
+                    stat.color === 'teal' ? 'text-teal-400' :
                     stat.color === 'green' ? 'text-green-400' :
                     stat.color === 'yellow' ? 'text-yellow-400' :
                     'text-red-400'
                   }`} />
                   <p className="text-2xl font-bold text-white">{stat.value}</p>
-                  <p className="text-sm text-cyan-200/60">{stat.title}</p>
+                  <p className="text-sm text-teal-200/60">{stat.title}</p>
                 </div>
               ))}
             </div>
@@ -166,7 +166,7 @@ const StudentDashboard = () => {
             {/* Attendance Bar */}
             <FloatingCard>
               <h3 className="font-semibold font-display mb-4 text-white flex items-center gap-2">
-                <TrendingUp size={18} className="text-cyan-400" />
+                <TrendingUp size={18} className="text-teal-400" />
                 Attendance Status
               </h3>
               <div className="flex items-center gap-4">
@@ -197,15 +197,15 @@ const StudentDashboard = () => {
               <div className="mt-4 flex flex-wrap gap-4 text-sm">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-green-500" />
-                  <span className="text-cyan-100/70">≥90% Excellent</span>
+                  <span className="text-teal-100/70">≥90% Excellent</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                  <span className="text-cyan-100/70">75-89% Needs Improvement</span>
+                  <span className="text-teal-100/70">75-89% Needs Improvement</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-red-500" />
-                  <span className="text-cyan-100/70">&lt;75% Critical</span>
+                  <span className="text-teal-100/70">&lt;75% Critical</span>
                 </div>
               </div>
             </FloatingCard>
@@ -226,7 +226,7 @@ const StudentDashboard = () => {
                             day: 'numeric'
                           })}
                         </p>
-                        <p className="text-sm text-cyan-200/60">
+                        <p className="text-sm text-teal-200/60">
                           Time: {record.time || '-'}
                         </p>
                       </div>
@@ -235,7 +235,7 @@ const StudentDashboard = () => {
                   ))}
                 </div>
               ) : (
-                <div className="py-8 text-center text-cyan-200/60">
+                <div className="py-8 text-center text-teal-200/60">
                   No attendance records found
                 </div>
               )}
@@ -246,8 +246,8 @@ const StudentDashboard = () => {
         {/* Empty State */}
         {!searchedStudent && !error && (
           <div className="text-center py-12">
-            <User size={48} className="mx-auto mb-4 text-cyan-500/30" />
-            <p className="text-cyan-200/60">Enter your Student ID above to view your attendance dashboard</p>
+            <User size={48} className="mx-auto mb-4 text-teal-500/30" />
+            <p className="text-teal-200/60">Enter your Student ID above to view your attendance dashboard</p>
           </div>
         )}
       </main>

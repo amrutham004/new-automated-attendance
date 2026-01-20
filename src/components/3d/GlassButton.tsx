@@ -50,13 +50,13 @@ const GlassButton = ({
   // Color variants
   const variantStyles = {
     primary: `
-      bg-gradient-to-r from-cyan-500/80 to-teal-500/80
+      bg-gradient-to-r from-green-500/80 via-teal-500/80 to-blue-500/80
       backdrop-blur-md
-      border border-cyan-400/30
+      border border-teal-400/30
       text-white
-      shadow-lg shadow-cyan-500/25
-      hover:shadow-xl hover:shadow-cyan-500/40
-      hover:border-cyan-300/50
+      shadow-lg shadow-teal-500/25
+      hover:shadow-xl hover:shadow-teal-500/40
+      hover:border-teal-300/50
     `,
     secondary: `
       bg-white/10
@@ -78,7 +78,7 @@ const GlassButton = ({
       <span 
         className="
           absolute inset-0 
-          bg-gradient-to-r from-cyan-400/0 via-white/20 to-cyan-400/0
+          bg-gradient-to-r from-teal-400/0 via-white/20 to-teal-400/0
           translate-x-[-100%]
           group-hover:translate-x-[100%]
           transition-transform duration-700

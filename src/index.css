@@ -6,26 +6,26 @@
 
 @layer base {
   :root {
-    --background: 180 20% 99%;
-    --foreground: 200 25% 15%;
+    --background: 150 30% 97%;
+    --foreground: 210 50% 20%;
 
     --card: 0 0% 100%;
-    --card-foreground: 200 25% 15%;
+    --card-foreground: 210 50% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 200 25% 15%;
+    --popover-foreground: 210 50% 20%;
 
-    --primary: 174 60% 40%;
+    --primary: 168 55% 45%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 180 15% 95%;
-    --secondary-foreground: 200 25% 25%;
+    --secondary: 150 25% 92%;
+    --secondary-foreground: 210 40% 25%;
 
-    --muted: 180 10% 94%;
-    --muted-foreground: 200 15% 45%;
+    --muted: 150 15% 90%;
+    --muted-foreground: 180 20% 40%;
 
-    --accent: 174 50% 92%;
-    --accent-foreground: 174 60% 30%;
+    --accent: 168 45% 88%;
+    --accent-foreground: 168 55% 30%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
@@ -39,43 +39,43 @@
     --danger: 0 72% 51%;
     --danger-foreground: 0 0% 100%;
 
-    --border: 180 15% 88%;
-    --input: 180 15% 88%;
-    --ring: 174 60% 40%;
+    --border: 150 20% 85%;
+    --input: 150 20% 85%;
+    --ring: 168 55% 45%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 180 20% 98%;
-    --sidebar-foreground: 200 25% 25%;
-    --sidebar-primary: 174 60% 40%;
+    --sidebar-background: 150 30% 96%;
+    --sidebar-foreground: 210 40% 25%;
+    --sidebar-primary: 168 55% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 174 50% 92%;
-    --sidebar-accent-foreground: 174 60% 30%;
-    --sidebar-border: 180 15% 88%;
-    --sidebar-ring: 174 60% 40%;
+    --sidebar-accent: 168 45% 88%;
+    --sidebar-accent-foreground: 168 55% 30%;
+    --sidebar-border: 150 20% 85%;
+    --sidebar-ring: 168 55% 45%;
   }
 
   .dark {
-    --background: 200 25% 10%;
-    --foreground: 180 15% 95%;
+    --background: 210 45% 12%;
+    --foreground: 150 25% 92%;
 
-    --card: 200 25% 12%;
-    --card-foreground: 180 15% 95%;
+    --card: 210 45% 15%;
+    --card-foreground: 150 25% 92%;
 
-    --popover: 200 25% 12%;
-    --popover-foreground: 180 15% 95%;
+    --popover: 210 45% 15%;
+    --popover-foreground: 150 25% 92%;
 
-    --primary: 174 55% 50%;
-    --primary-foreground: 200 25% 10%;
+    --primary: 168 50% 50%;
+    --primary-foreground: 210 45% 12%;
 
-    --secondary: 200 20% 18%;
-    --secondary-foreground: 180 15% 90%;
+    --secondary: 210 35% 20%;
+    --secondary-foreground: 150 20% 88%;
 
-    --muted: 200 20% 18%;
-    --muted-foreground: 180 10% 60%;
+    --muted: 210 35% 20%;
+    --muted-foreground: 168 20% 55%;
 
-    --accent: 200 20% 20%;
-    --accent-foreground: 174 55% 60%;
+    --accent: 210 30% 22%;
+    --accent-foreground: 168 50% 60%;
 
     --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
@@ -89,18 +89,18 @@
     --danger: 0 62% 45%;
     --danger-foreground: 0 0% 100%;
 
-    --border: 200 20% 22%;
-    --input: 200 20% 22%;
-    --ring: 174 55% 50%;
+    --border: 210 30% 25%;
+    --input: 210 30% 25%;
+    --ring: 168 50% 50%;
 
-    --sidebar-background: 200 25% 10%;
-    --sidebar-foreground: 180 15% 90%;
-    --sidebar-primary: 174 55% 50%;
-    --sidebar-primary-foreground: 200 25% 10%;
-    --sidebar-accent: 200 20% 18%;
-    --sidebar-accent-foreground: 174 55% 60%;
-    --sidebar-border: 200 20% 22%;
-    --sidebar-ring: 174 55% 50%;
+    --sidebar-background: 210 45% 12%;
+    --sidebar-foreground: 150 20% 88%;
+    --sidebar-primary: 168 50% 50%;
+    --sidebar-primary-foreground: 210 45% 12%;
+    --sidebar-accent: 210 35% 20%;
+    --sidebar-accent-foreground: 168 50% 60%;
+    --sidebar-border: 210 30% 25%;
+    --sidebar-ring: 168 50% 50%;
   }
 }
 
@@ -121,7 +121,7 @@
 
 @layer utilities {
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(174 60% 40%) 0%, hsl(180 50% 35%) 100%);
+    background: linear-gradient(135deg, hsl(130 45% 55%) 0%, hsl(168 55% 45%) 50%, hsl(200 55% 45%) 100%);
   }
 
   .gradient-success {
@@ -137,13 +137,13 @@
   }
 
   .card-shadow {
-    box-shadow: 0 4px 6px -1px hsl(200 25% 15% / 0.05), 
-                0 2px 4px -2px hsl(200 25% 15% / 0.05);
+    box-shadow: 0 4px 6px -1px hsl(210 50% 20% / 0.05), 
+                0 2px 4px -2px hsl(210 50% 20% / 0.05);
   }
 
   .card-shadow-lg {
-    box-shadow: 0 10px 15px -3px hsl(200 25% 15% / 0.08), 
-                0 4px 6px -4px hsl(200 25% 15% / 0.05);
+    box-shadow: 0 10px 15px -3px hsl(210 50% 20% / 0.08), 
+                0 4px 6px -4px hsl(210 50% 20% / 0.05);
   }
 
   .status-present {

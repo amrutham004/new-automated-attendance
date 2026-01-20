@@ -19,7 +19,7 @@ import { CUTOFF_TIME } from '@/lib/attendanceData';
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-teal-800 to-emerald-900 text-white overflow-hidden">
       {/* 3D Background Scene */}
       <Scene3D />
       
@@ -31,18 +31,18 @@ const Index = () => {
         <div className="text-center mb-10 md:mb-16 animate-fade-in">
           {/* Glowing Logo Container */}
           <div className="relative inline-block mb-6">
-            <div className="absolute inset-0 bg-cyan-500/30 blur-3xl rounded-full animate-pulse" />
-            <div className="relative w-24 h-24 md:w-32 md:h-32 mx-auto rounded-full bg-gradient-to-br from-cyan-400 to-teal-500 p-1 shadow-2xl shadow-cyan-500/50">
-              <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center">
-                <Sparkles className="w-12 h-12 md:w-16 md:h-16 text-cyan-400" />
+            <div className="absolute inset-0 bg-teal-500/30 blur-3xl rounded-full animate-pulse" />
+            <div className="relative w-24 h-24 md:w-32 md:h-32 mx-auto rounded-full bg-gradient-to-br from-green-400 via-teal-500 to-blue-500 p-1 shadow-2xl shadow-teal-500/50">
+              <div className="w-full h-full rounded-full bg-blue-900 flex items-center justify-center">
+                <Sparkles className="w-12 h-12 md:w-16 md:h-16 text-teal-400" />
               </div>
             </div>
           </div>
           
-          <p className="text-xl md:text-2xl text-cyan-100/80 mb-3 font-light">
+          <p className="text-xl md:text-2xl text-teal-100/80 mb-3 font-light">
             Automated Attendance System
           </p>
-          <p className="text-sm text-cyan-200/60 flex items-center justify-center gap-2">
+          <p className="text-sm text-teal-200/60 flex items-center justify-center gap-2">
             <Clock size={14} />
             Cutoff time: {CUTOFF_TIME} AM
           </p>
@@ -58,16 +58,16 @@ const Index = () => {
 
         {/* Quick Access Cards with 3D hover effect */}
         <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto mb-16">
-          <FloatingCard glowColor="rgba(34, 211, 238, 0.3)">
+          <FloatingCard glowColor="rgba(45, 212, 191, 0.3)">
             <div className="flex items-start gap-4">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500/20 to-teal-500/20 border border-cyan-500/30">
-                <LayoutDashboard size={28} className="text-cyan-400" />
+              <div className="p-3 rounded-xl bg-gradient-to-br from-green-500/20 to-teal-500/20 border border-teal-500/30">
+                <LayoutDashboard size={28} className="text-teal-400" />
               </div>
               <div className="flex-1">
                 <h2 className="text-xl font-semibold font-display mb-2 text-white">
                   Admin Dashboard
                 </h2>
-                <p className="text-sm text-cyan-100/70 mb-4">
+                <p className="text-sm text-teal-100/70 mb-4">
                   View attendance statistics, reports, and manage student records.
                 </p>
                 <GlassButton to="/admin" variant="secondary">
@@ -77,16 +77,16 @@ const Index = () => {
             </div>
           </FloatingCard>
 
-          <FloatingCard glowColor="rgba(168, 85, 247, 0.3)">
+          <FloatingCard glowColor="rgba(59, 130, 246, 0.3)">
             <div className="flex items-start gap-4">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30">
-                <Users size={28} className="text-purple-400" />
+              <div className="p-3 rounded-xl bg-gradient-to-br from-teal-500/20 to-blue-500/20 border border-blue-500/30">
+                <Users size={28} className="text-blue-400" />
               </div>
               <div className="flex-1">
                 <h2 className="text-xl font-semibold font-display mb-2 text-white">
                   Student Portal
                 </h2>
-                <p className="text-sm text-purple-100/70 mb-4">
+                <p className="text-sm text-blue-100/70 mb-4">
                   Check your attendance history and view your attendance percentage.
                 </p>
                 <GlassButton to="/student" variant="secondary">
@@ -99,7 +99,7 @@ const Index = () => {
 
         {/* How It Works - 3D Steps */}
         <div className="text-center">
-          <h2 className="text-2xl font-semibold font-display mb-8 text-cyan-100">
+          <h2 className="text-2xl font-semibold font-display mb-8 text-teal-100">
             How It Works
           </h2>
           <div className="grid sm:grid-cols-3 gap-6 max-w-4xl mx-auto">
@@ -125,17 +125,17 @@ const Index = () => {
                 <div className="
                   w-14 h-14 mx-auto mb-4
                   rounded-full 
-                  bg-gradient-to-br from-cyan-500 to-teal-500
+                  bg-gradient-to-br from-green-500 via-teal-500 to-blue-500
                   flex items-center justify-center 
                   font-bold font-display text-xl text-white
-                  shadow-lg shadow-cyan-500/30
-                  group-hover:shadow-cyan-500/50
+                  shadow-lg shadow-teal-500/30
+                  group-hover:shadow-teal-500/50
                   transition-shadow duration-300
                 ">
                   {step.num}
                 </div>
                 <h3 className="font-semibold text-lg mb-2 text-white">{step.title}</h3>
-                <p className="text-sm text-cyan-100/60">{step.desc}</p>
+                <p className="text-sm text-teal-100/60">{step.desc}</p>
               </div>
             ))}
           </div>

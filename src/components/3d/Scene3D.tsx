@@ -102,8 +102,8 @@ const Scene = () => {
       {/* Lighting Setup */}
       <ambientLight intensity={0.4} />
       <directionalLight position={[10, 10, 5]} intensity={1} color="#ffffff" />
-      <pointLight position={[-10, -10, -5]} intensity={0.5} color="#22d3ee" />
-      <pointLight position={[10, -10, 5]} intensity={0.3} color="#a855f7" />
+      <pointLight position={[-10, -10, -5]} intensity={0.5} color="#2dd4bf" />
+      <pointLight position={[10, -10, 5]} intensity={0.3} color="#3b82f6" />
       
       {/* Background Stars */}
       <Stars 
@@ -117,14 +117,14 @@ const Scene = () => {
       />
       
       {/* Floating Elements - Positioned around the viewport */}
-      <FloatingSphere position={[-3, 2, -2]} color="#22d3ee" size={0.8} />
-      <FloatingSphere position={[3, -1, -3]} color="#06b6d4" size={0.6} />
-      <FloatingSphere position={[4, 2, -4]} color="#0891b2" size={1} />
+      <FloatingSphere position={[-3, 2, -2]} color="#2dd4bf" size={0.8} />
+      <FloatingSphere position={[3, -1, -3]} color="#14b8a6" size={0.6} />
+      <FloatingSphere position={[4, 2, -4]} color="#0d9488" size={1} />
       
-      <FloatingBox position={[-4, -2, -3]} color="#a855f7" size={0.7} />
-      <FloatingBox position={[2, 3, -5]} color="#7c3aed" size={0.5} />
+      <FloatingBox position={[-4, -2, -3]} color="#3b82f6" size={0.7} />
+      <FloatingBox position={[2, 3, -5]} color="#2563eb" size={0.5} />
       
-      <FloatingTorus position={[-2, 0, -4]} color="#f59e0b" />
+      <FloatingTorus position={[-2, 0, -4]} color="#22c55e" />
       <FloatingTorus position={[4, -2, -3]} color="#10b981" />
       
       {/* Camera Controls - Limited for background effect */}
