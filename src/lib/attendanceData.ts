@@ -624,3 +624,14 @@ export const getWeeklySummary = () => {
   
   return weekData;
 };
+
+/**
+ * Clear all localStorage data and regenerate mock history
+ * Used to reset data when student list changes
+ */
+export const clearAllAttendanceData = (): void => {
+  localStorage.removeItem(ATTENDANCE_KEY);
+  localStorage.removeItem(STUDENT_PHOTOS_KEY);
+  localStorage.removeItem(FACE_CAPTURES_KEY);
+  localStorage.removeItem(ATTENDANCE_TOKENS_KEY);
+};
