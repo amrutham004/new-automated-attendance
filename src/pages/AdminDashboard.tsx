@@ -25,13 +25,16 @@ import {
   getRecordsForExport, 
   exportToCSV, 
   getWeeklySummary,
-  students 
+  students,
+  clearAllAttendanceData
 } from '@/lib/attendanceData';
-import { Users, UserCheck, Clock, UserX, Download, Calendar, ScanLine } from 'lucide-react';
+import { Users, UserCheck, Clock, UserX, Download, Calendar, ScanLine, RotateCcw } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { toast } from 'sonner';
 
 const AdminDashboard = () => {
   const [exportFilter, setExportFilter] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [, forceUpdate] = useState(0);
   
   const stats = getDashboardStats();
   const weeklyData = getWeeklySummary();
@@ -42,6 +45,13 @@ const AdminDashboard = () => {
     exportToCSV(records);
   };
 
+  const handleResetData = () => {
+    clearAllAttendanceData();
+    toast.success('Attendance data cleared! Refreshing with new student list...');
+    forceUpdate(n => n + 1);
+    window.location.reload();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
       <Scene3D />
@@ -49,15 +59,26 @@ const AdminDashboard = () => {
 
       <main className="container relative z-10 py-8">
         {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold font-display bg-gradient-to-r from-cyan-300 to-teal-300 bg-clip-text text-transparent mb-2">
-            Admin Dashboard
-          </h1>
-          <p className="text-cyan-100/70">
-            Overview for {new Date().toLocaleDateString('en-US', { 
-              weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
-            })}
-          </p>
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold font-display bg-gradient-to-r from-cyan-300 to-teal-300 bg-clip-text text-transparent mb-2">
+              Admin Dashboard
+            </h1>
+            <p className="text-cyan-100/70">
+              Overview for {new Date().toLocaleDateString('en-US', { 
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+              })}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleResetData}
+            className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+          >
+            <RotateCcw size={16} className="mr-2" />
+            Reset Data
+          </Button>
         </div>
 
         {/* Stats Grid */}
