@@ -56,11 +56,11 @@ const StudentDashboard = () => {
     : [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-teal-800 to-emerald-900 text-white overflow-hidden">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-900 via-teal-800 to-emerald-900 text-white overflow-hidden">
       <Scene3D />
       <Header />
 
-      <main className="container relative z-10 py-8 max-w-4xl">
+      <main className="container relative z-10 py-8 max-w-4xl flex-1">
         {/* Page Header */}
         <div className="mb-8 text-center md:text-left">
           <h1 className="text-3xl font-bold font-display bg-gradient-to-r from-green-300 via-teal-300 to-blue-300 bg-clip-text text-transparent mb-2">
