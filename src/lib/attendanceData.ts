@@ -312,9 +312,8 @@ export const generateAttendanceURL = (studentId: string): string => {
   const token = generateAttendanceToken(studentId);
   if (!token) return '';
   
-  // Local network IP - phones on same network can access this
-  // Port 5173 is Vite's default dev server port
-  const baseUrl = 'http://192.168.1.100:5173';
+  // Local network address - phones on same network can access this
+  const baseUrl = 'http://192.168.0.112:8080';
   return `${baseUrl}/verify-attendance?token=${token}`;
 };
 
