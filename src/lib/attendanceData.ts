@@ -558,7 +558,7 @@ export const getStudentById = (studentId: string): Student | undefined => {
   return students.find(s => s.id === studentId);
 };
 
-// Get attendance records for export
+// Get attendance records for export (includes absent students)
 export const getRecordsForExport = (
   filter: 'daily' | 'weekly' | 'monthly' = 'daily'
 ): AttendanceRecord[] => {
@@ -566,28 +566,91 @@ export const getRecordsForExport = (
   const today = new Date();
   
   let startDate: Date;
+  let endDate: Date = new Date(today.toISOString().split('T')[0]);
+  
   switch (filter) {
     case 'weekly':
       startDate = new Date(today);
-      startDate.setDate(today.getDate() - 7);
+      startDate.setDate(today.getDate() - 6);
       break;
     case 'monthly':
       startDate = new Date(today);
-      startDate.setDate(today.getDate() - 30);
+      startDate.setDate(today.getDate() - 29);
       break;
     default:
       startDate = new Date(today.toISOString().split('T')[0]);
   }
   
-  return records.filter(r => new Date(r.date) >= startDate);
+  // Get all dates in the range (excluding weekends)
+  const dates: string[] = [];
+  const currentDate = new Date(startDate);
+  while (currentDate <= endDate) {
+    if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
+      dates.push(currentDate.toISOString().split('T')[0]);
+    }
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  // Build complete records including absent students
+  const completeRecords: AttendanceRecord[] = [];
+  
+  dates.forEach(date => {
+    students.forEach(student => {
+      const existingRecord = records.find(
+        r => r.studentId === student.id && r.date === date
+      );
+      
+      if (existingRecord) {
+        completeRecords.push(existingRecord);
+      } else {
+        // Student was absent on this date
+        completeRecords.push({
+          studentId: student.id,
+          studentName: student.name,
+          date,
+          time: '',
+          status: 'ABSENT'
+        });
+      }
+    });
+  });
+  
+  return completeRecords;
 };
 
-// Export to CSV
+// Export to CSV with proper formatting
 export const exportToCSV = (records: AttendanceRecord[]): void => {
+  // UTF-8 BOM for Excel compatibility
+  const BOM = '\uFEFF';
   const headers = ['Student ID', 'Student Name', 'Date', 'Time', 'Status'];
-  const rows = records.map(r => [r.studentId, r.studentName, r.date, r.time, r.status]);
   
-  const csvContent = [
+  // Format status for readability
+  const formatStatus = (status: AttendanceStatus): string => {
+    switch (status) {
+      case 'PRESENT': return 'Present';
+      case 'LATE_PRESENT': return 'Late';
+      case 'ABSENT': return 'Absent';
+      default: return status;
+    }
+  };
+  
+  // Escape fields that may contain commas or quotes
+  const escapeCSVField = (field: string): string => {
+    if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+      return `"${field.replace(/"/g, '""')}"`;
+    }
+    return field;
+  };
+  
+  const rows = records.map(r => [
+    escapeCSVField(r.studentId),
+    escapeCSVField(r.studentName),
+    r.date,
+    r.time || '-',
+    formatStatus(r.status)
+  ]);
+  
+  const csvContent = BOM + [
     headers.join(','),
     ...rows.map(row => row.join(','))
   ].join('\n');
