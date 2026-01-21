@@ -26,8 +26,8 @@ export const students: Student[] = [
 // CONSTANTS
 // ========================================
 
-// Time after which attendance is marked as "late" (8:30 AM)
-export const CUTOFF_TIME = '08:30';
+// Time after which attendance is marked as "late" (11:00 AM)
+export const CUTOFF_TIME = '11:00';
 
 // QR codes expire after this many seconds (security feature)
 export const QR_VALIDITY_SECONDS = 30;
