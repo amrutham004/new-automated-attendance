@@ -8,15 +8,18 @@
  */
 
 import { useState, useRef, ReactNode } from 'react';
+
 interface FloatingCardProps {
   children: ReactNode;
   className?: string;
   glowColor?: string;
+  onClick?: () => void;
 }
 const FloatingCard = ({
   children,
   className = '',
-  glowColor = 'rgba(45, 212, 191, 0.3)'
+  glowColor = 'rgba(45, 212, 191, 0.3)',
+  onClick
 }: FloatingCardProps) => {
   // Track mouse position for 3D tilt effect
   const [rotateX, setRotateX] = useState(0);
@@ -44,14 +47,23 @@ const FloatingCard = ({
     setRotateY(0);
     setIsHovered(false);
   };
-  return <div ref={cardRef} onMouseMove={handleMouseMove} onMouseEnter={() => setIsHovered(true)} onMouseLeave={handleMouseLeave} className={`
-        relative
-        transition-all duration-300 ease-out
-        ${className}
-      `} style={{
-    transform: `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) ${isHovered ? 'translateZ(20px)' : ''}`,
-    transformStyle: 'preserve-3d'
-  }}>
+  return <div 
+    ref={cardRef} 
+    onMouseMove={handleMouseMove} 
+    onMouseEnter={() => setIsHovered(true)} 
+    onMouseLeave={handleMouseLeave}
+    onClick={onClick}
+    className={`
+      relative
+      transition-all duration-300 ease-out
+      ${onClick ? 'cursor-pointer' : ''}
+      ${className}
+    `} 
+    style={{
+      transform: `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) ${isHovered ? 'translateZ(20px)' : ''}`,
+      transformStyle: 'preserve-3d'
+    }}
+  >
       {/* Glow effect behind card */}
       <div className="absolute inset-0 rounded-2xl blur-xl opacity-50 transition-opacity duration-300" style={{
       background: glowColor,

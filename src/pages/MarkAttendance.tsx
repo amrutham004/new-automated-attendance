@@ -1,11 +1,14 @@
 /**
- * MarkAttendance.tsx - Student QR Code Generation Page (3D Design)
+ * MarkAttendance.tsx - Student Attendance Page (3D Design)
  * 
- * Allows students to generate a time-limited QR code for attendance.
+ * Allows students to mark attendance via:
+ * - QR Code (generate & scan)
+ * - Face Recognition
+ * 
  * Features:
  * - 3D styled glassmorphism cards
  * - Interactive 3D background
- * - Animated transitions
+ * - Side-by-side attendance options
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -14,6 +17,7 @@ import Footer from '@/components/attendance/Footer';
 import Scene3D from '@/components/3d/Scene3D';
 import FloatingCard from '@/components/3d/FloatingCard';
 import GlassButton from '@/components/3d/GlassButton';
+import FaceRecognitionCapture from '@/components/attendance/FaceRecognitionCapture';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
@@ -21,16 +25,19 @@ import {
   generateAttendanceURL, 
   getStudentById, 
   hasMarkedAttendanceToday,
+  markAttendanceFromScan,
   QR_VALIDITY_SECONDS 
 } from '@/lib/attendanceData';
-import { ArrowLeft, CheckCircle, Clock, Shield, QrCode, Smartphone } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock, Shield, QrCode, Smartphone, ScanFace, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 
-type Step = 'input' | 'qr-display' | 'already-marked';
+type Step = 'select-method' | 'input' | 'qr-display' | 'face-capture' | 'already-marked' | 'success';
+type AttendanceMethod = 'qr' | 'face' | null;
 
 const MarkAttendance = () => {
-  const [step, setStep] = useState<Step>('input');
+  const [step, setStep] = useState<Step>('select-method');
+  const [method, setMethod] = useState<AttendanceMethod>(null);
   const [studentId, setStudentId] = useState('');
   const [studentName, setStudentName] = useState('');
   const [qrData, setQrData] = useState('');
@@ -56,6 +63,11 @@ const MarkAttendance = () => {
     return () => clearInterval(countdownInterval);
   }, [step, generateNewQR]);
 
+  const handleMethodSelect = (selectedMethod: AttendanceMethod) => {
+    setMethod(selectedMethod);
+    setStep('input');
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -73,14 +85,33 @@ const MarkAttendance = () => {
     }
 
     setStudentName(student.name);
-    setStep('qr-display');
+    
+    if (method === 'qr') {
+      setStep('qr-display');
+    } else if (method === 'face') {
+      setStep('face-capture');
+    }
+  };
+
+  const handleFaceRecognitionSuccess = () => {
+    // Mark attendance after successful face verification
+    markAttendanceFromScan(studentId.toUpperCase());
+    setStep('success');
   };
 
   const handleReset = () => {
-    setStep('input');
+    setStep('select-method');
+    setMethod(null);
     setStudentId('');
     setStudentName('');
     setQrData('');
+    setError('');
+  };
+
+  const handleBackToMethodSelect = () => {
+    setStep('select-method');
+    setMethod(null);
+    setStudentId('');
     setError('');
   };
 
@@ -90,7 +121,7 @@ const MarkAttendance = () => {
       <Scene3D />
       <Header />
 
-      <main className="container relative z-10 py-8 max-w-lg">
+      <main className="container relative z-10 py-8 max-w-2xl">
         {/* Back Link */}
         <Link 
           to="/" 
@@ -100,18 +131,96 @@ const MarkAttendance = () => {
           Back to Home
         </Link>
 
-        {/* Step: Input */}
-        {step === 'input' && (
+        {/* Step: Select Method */}
+        {step === 'select-method' && (
           <div className="space-y-6 animate-fade-in">
             <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-green-500/20 to-teal-500/20 border border-teal-500/30 flex items-center justify-center">
-                <QrCode size={32} className="text-teal-400" />
-              </div>
               <h1 className="text-2xl font-bold font-display bg-gradient-to-r from-green-300 via-teal-300 to-blue-300 bg-clip-text text-transparent mb-2">
                 Mark Attendance
               </h1>
               <p className="text-teal-100/70">
-                Enter your Student ID to generate your attendance QR code
+                Choose your preferred attendance method
+              </p>
+            </div>
+
+            {/* Two Options Side by Side */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* QR Code Option */}
+              <FloatingCard className="cursor-pointer group" onClick={() => handleMethodSelect('qr')}>
+                <div className="text-center space-y-4 py-4">
+                  <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-green-500/20 to-teal-500/20 border border-teal-500/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <QrCode size={32} className="text-teal-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white mb-1">QR Code</h3>
+                    <p className="text-sm text-teal-100/70">
+                      Generate a time-limited QR code and scan with your phone
+                    </p>
+                  </div>
+                  <GlassButton variant="primary" className="w-full">
+                    Use QR Code
+                  </GlassButton>
+                </div>
+              </FloatingCard>
+
+              {/* Face Recognition Option */}
+              <FloatingCard className="cursor-pointer group" onClick={() => handleMethodSelect('face')}>
+                <div className="text-center space-y-4 py-4">
+                  <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <ScanFace size={32} className="text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white mb-1">Face Recognition</h3>
+                    <p className="text-sm text-teal-100/70">
+                      Use your camera to verify identity and mark attendance
+                    </p>
+                  </div>
+                  <GlassButton variant="primary" className="w-full">
+                    Use Face Recognition
+                  </GlassButton>
+                </div>
+              </FloatingCard>
+            </div>
+
+            {/* Security Info */}
+            <FloatingCard glowColor="rgba(59, 130, 246, 0.2)">
+              <div className="flex items-start gap-3">
+                <Shield size={24} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-sm text-white">Secure Attendance</p>
+                  <p className="text-sm text-blue-100/70 mt-1">
+                    Both methods use secure verification to ensure accurate attendance recording.
+                  </p>
+                </div>
+              </div>
+            </FloatingCard>
+          </div>
+        )}
+
+        {/* Step: Input (for both methods) */}
+        {step === 'input' && (
+          <div className="space-y-6 animate-fade-in max-w-lg mx-auto">
+            <button
+              onClick={handleBackToMethodSelect}
+              className="inline-flex items-center gap-2 text-teal-300/70 hover:text-teal-300 transition-colors"
+            >
+              <ArrowLeft size={16} />
+              Choose different method
+            </button>
+
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-green-500/20 to-teal-500/20 border border-teal-500/30 flex items-center justify-center">
+                {method === 'qr' ? (
+                  <QrCode size={32} className="text-teal-400" />
+                ) : (
+                  <ScanFace size={32} className="text-purple-400" />
+                )}
+              </div>
+              <h1 className="text-2xl font-bold font-display bg-gradient-to-r from-green-300 via-teal-300 to-blue-300 bg-clip-text text-transparent mb-2">
+                {method === 'qr' ? 'QR Code Attendance' : 'Face Recognition Attendance'}
+              </h1>
+              <p className="text-teal-100/70">
+                Enter your Student ID to continue
               </p>
             </div>
 
@@ -137,19 +246,23 @@ const MarkAttendance = () => {
                 )}
 
                 <GlassButton variant="primary" className="w-full">
-                  Generate My QR Code
+                  {method === 'qr' ? 'Generate My QR Code' : 'Start Face Capture'}
                 </GlassButton>
               </form>
             </FloatingCard>
 
-            {/* Security Info */}
-            <FloatingCard glowColor="rgba(59, 130, 246, 0.2)">
+            {/* Method-specific info */}
+            <FloatingCard glowColor={method === 'qr' ? "rgba(59, 130, 246, 0.2)" : "rgba(168, 85, 247, 0.2)"}>
               <div className="flex items-start gap-3">
-                <Shield size={24} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                <Shield size={24} className={method === 'qr' ? "text-blue-400" : "text-purple-400"} />
                 <div>
-                  <p className="font-medium text-sm text-white">Secure Attendance</p>
+                  <p className="font-medium text-sm text-white">
+                    {method === 'qr' ? 'QR Code Security' : 'Face Recognition Security'}
+                  </p>
                   <p className="text-sm text-blue-100/70 mt-1">
-                    Your QR code expires in 30 seconds. Scan it with your phone camera to mark attendance.
+                    {method === 'qr' 
+                      ? 'Your QR code expires in 30 seconds. Scan it with your phone camera to mark attendance.'
+                      : 'Your face will be compared with your registered photo. Ensure good lighting for best results.'}
                   </p>
                 </div>
               </div>
@@ -157,9 +270,21 @@ const MarkAttendance = () => {
           </div>
         )}
 
+        {/* Step: Face Capture */}
+        {step === 'face-capture' && (
+          <div className="max-w-lg mx-auto">
+            <FaceRecognitionCapture
+              studentId={studentId.toUpperCase()}
+              studentName={studentName}
+              onSuccess={handleFaceRecognitionSuccess}
+              onCancel={handleReset}
+            />
+          </div>
+        )}
+
         {/* Step: QR Display */}
         {step === 'qr-display' && (
-          <div className="space-y-6 animate-fade-in">
+          <div className="space-y-6 animate-fade-in max-w-lg mx-auto">
             <div className="text-center">
               <h1 className="text-2xl font-bold font-display bg-gradient-to-r from-green-300 via-teal-300 to-blue-300 bg-clip-text text-transparent mb-2">
                 Your Attendance QR
@@ -216,9 +341,38 @@ const MarkAttendance = () => {
           </div>
         )}
 
+        {/* Step: Success (Face Recognition) */}
+        {step === 'success' && (
+          <div className="animate-scale-in max-w-lg mx-auto">
+            <FloatingCard glowColor="rgba(34, 197, 94, 0.3)">
+              <div className="text-center space-y-4">
+                <div className="w-20 h-20 mx-auto rounded-full bg-green-500/20 flex items-center justify-center">
+                  <CheckCircle size={40} className="text-green-400" />
+                </div>
+                <h2 className="text-xl font-bold font-display text-green-400">Attendance Marked!</h2>
+                <p className="text-teal-100/70">
+                  Your attendance has been successfully recorded for <strong className="text-white">{studentName}</strong>.
+                </p>
+              </div>
+
+              <div className="mt-8 space-y-3">
+                <GlassButton to="/student" variant="primary" className="w-full">
+                  View My Attendance
+                </GlassButton>
+                <button 
+                  onClick={handleReset}
+                  className="w-full text-teal-300/70 hover:text-teal-300 transition-colors text-sm"
+                >
+                  Mark Another Attendance
+                </button>
+              </div>
+            </FloatingCard>
+          </div>
+        )}
+
         {/* Step: Already Marked */}
         {step === 'already-marked' && (
-          <div className="animate-scale-in">
+          <div className="animate-scale-in max-w-lg mx-auto">
             <FloatingCard glowColor="rgba(34, 197, 94, 0.3)">
               <div className="text-center space-y-4">
                 <div className="w-20 h-20 mx-auto rounded-full bg-green-500/20 flex items-center justify-center">
