@@ -5,13 +5,6 @@
  * - React Query for data management
  * - Toast notifications for user feedback
  * - All application routes
- * 
- * Routes are public (no authentication required):
- * - / : Home page
- * - /mark-attendance : Student QR code generation
- * - /student : Student dashboard
- * - /admin : Admin dashboard
- * - /scan-student : Teacher QR scanner with face capture
  */
 
 import { Toaster } from "@/components/ui/toaster";
@@ -19,6 +12,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+// Import existing pages
 import Index from "./pages/Index";
 import MarkAttendance from "./pages/MarkAttendance";
 import TeacherQRDisplay from "./pages/TeacherQRDisplay";

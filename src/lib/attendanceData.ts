@@ -336,17 +336,45 @@ export const useAttendanceToken = (token: string): {
 
 /**
  * Generate attendance URL for QR code
- * Uses local network IP for phone scanning (Vite dev server port 5173)
+ * Automatically detects and uses current network address
+ * Supports localhost, network IP, and dynamic changes
  */
 export const generateAttendanceURL = (studentId: string): string => {
   const token = generateAttendanceToken(studentId);
   if (!token) return '';
   
-  // Dynamic base URL - supports both localhost and network access
-  const baseUrl = window.location.hostname === 'localhost' 
-    ? 'http://localhost:8080' 
-    : 'http://192.168.0.108:8080';
-  return `${baseUrl}/verify-attendance?token=${token}`;
+  // Smart network detection - automatically adapts to current access method
+  const currentHostname = window.location.hostname;
+  const currentPort = window.location.port || '8080';
+  const currentProtocol = window.location.protocol;
+  
+  console.log('Network detection:', { 
+    hostname: currentHostname, 
+    port: currentPort, 
+    protocol: currentProtocol 
+  });
+  
+  let baseUrl: string;
+  
+  // Determine base URL based on access method
+  if (currentHostname === 'localhost' || currentHostname === '127.0.0.1') {
+    // Local development access
+    baseUrl = `${currentProtocol}//localhost:${currentPort}`;
+    console.log('Using localhost URL:', baseUrl);
+  } else if (currentHostname.match(/^192\.168\.\d+\.\d+$/)) {
+    // Local network IP access
+    baseUrl = `${currentProtocol}//${currentHostname}:${currentPort}`;
+    console.log('Using network IP URL:', baseUrl);
+  } else {
+    // Fallback - try to detect local network IP
+    baseUrl = `${currentProtocol}//${currentHostname}:${currentPort}`;
+    console.log('Using detected URL:', baseUrl);
+  }
+  
+  const fullUrl = `${baseUrl}/verify-attendance?token=${token}`;
+  console.log('Generated QR URL:', fullUrl);
+  
+  return fullUrl;
 };
 
 /**
