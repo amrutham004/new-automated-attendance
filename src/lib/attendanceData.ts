@@ -619,22 +619,22 @@ export const verifyFaceWithBackend = async (
   }
 };
 
-// Get today's attendance status for specific students (matching the image table)
+// Get today's attendance status for specific students (only the 3 required students)
 export const getTodayAttendanceStatus = (): AttendanceRecord[] => {
   const today = new Date().toISOString().split('T')[0];
   const records = getAttendanceRecords();
   const todayRecords = records.filter(r => r.date === today);
   
-  // Get students that match the attendance table shown in the image
-  const imageTableStudents = [
+  // Get only the 3 required students
+  const requiredStudents = [
     { id: '20221CIT0043', name: 'Amrutha M' },
-    { id: '20221CIT0051', name: 'Rashmi C' },
-    { id: '20221CIT0052', name: 'Sneha R' }
+    { id: '20221CIT0049', name: 'C M Shalini' },
+    { id: '20221CIT0151', name: 'Vismaya L' }
   ];
   
   const studentStatuses: AttendanceRecord[] = [];
   
-  imageTableStudents.forEach(student => {
+  requiredStudents.forEach(student => {
     const attendanceRecord = todayRecords.find(r => r.studentId === student.id);
     if (attendanceRecord) {
       // Use the actual attendance record if it exists
@@ -664,7 +664,7 @@ export const addSampleTodayAttendance = (): void => {
   // Check if we already have today's records
   const existingTodayRecords = records.filter(r => r.date === today);
   if (existingTodayRecords.length === 0) {
-    // Add sample records for students to match the image table
+    // Add sample records for the 3 required students only
     const sampleRecords: AttendanceRecord[] = [
       {
         studentId: '20221CIT0043',
@@ -676,15 +676,15 @@ export const addSampleTodayAttendance = (): void => {
         verified: true
       },
       {
-        studentId: '20221CIT0051',
-        studentName: 'Rashmi C',
+        studentId: '20221CIT0151',
+        studentName: 'Vismaya L',
         date: today,
         time: '09:30',
         status: 'PRESENT',
         method: 'qr_scan',
         verified: true
       }
-      // Note: Sneha R (20221CIT0052) will show as ABSENT since no record exists
+      // Note: C M Shalini (20221CIT0049) will show as ABSENT since no record exists
     ];
     
     // Save the sample records
