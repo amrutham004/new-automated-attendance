@@ -628,47 +628,67 @@ export const getTodayAttendanceStatus = (): AttendanceRecord[] => {
   const records = getAttendanceRecords();
   const todayRecords = records.filter(r => r.date === today);
   
-  // Get first 3 students and check their status
+  // Get first 3 students and check their actual attendance status
   const firstThreeStudents = students.slice(0, 3);
   const studentStatuses: AttendanceRecord[] = [];
   
-  firstThreeStudents.forEach((student, index) => {
+  firstThreeStudents.forEach(student => {
     const attendanceRecord = todayRecords.find(r => r.studentId === student.id);
     if (attendanceRecord) {
+      // Use the actual attendance record if it exists
       studentStatuses.push(attendanceRecord);
     } else {
-      // Generate realistic mock attendance for today's demonstration
-      let status: 'PRESENT' | 'LATE_PRESENT' | 'ABSENT';
-      let time: string;
-      
-      // Create varied attendance status for demonstration
-      if (index === 0) {
-        // First student: Present on time
-        status = 'PRESENT';
-        time = '09:15';
-      } else if (index === 1) {
-        // Second student: Late
-        status = 'LATE_PRESENT';
-        time = '13:45';
-      } else {
-        // Third student: Absent
-        status = 'ABSENT';
-        time = '-';
-      }
-      
+      // Only mark as absent if no actual record exists for today
       studentStatuses.push({
         studentId: student.id,
         studentName: student.name,
         date: today,
-        time: time,
-        status: status,
-        method: status === 'ABSENT' ? 'auto' : 'qr_scan',
-        verified: status !== 'ABSENT'
+        time: '-',
+        status: 'ABSENT',
+        method: 'auto',
+        verified: false
       });
     }
   });
   
   return studentStatuses;
+};
+
+// Add sample attendance for today (for demonstration - in real app this comes from actual check-ins)
+export const addSampleTodayAttendance = (): void => {
+  const today = new Date().toISOString().split('T')[0];
+  const records = getAttendanceRecords();
+  
+  // Check if we already have today's records
+  const existingTodayRecords = records.filter(r => r.date === today);
+  if (existingTodayRecords.length === 0) {
+    // Add sample records for first 2 students to demonstrate real data
+    const sampleRecords: AttendanceRecord[] = [
+      {
+        studentId: '20221CIT0043',
+        studentName: 'Amrutha M',
+        date: today,
+        time: '09:15',
+        status: 'PRESENT',
+        method: 'qr_scan',
+        verified: true
+      },
+      {
+        studentId: '20221CIT0045',
+        studentName: 'Rahul S',
+        date: today,
+        time: '13:45',
+        status: 'LATE_PRESENT',
+        method: 'qr_scan',
+        verified: true
+      }
+      // Note: C M Shalini (20221CIT0049) will show as ABSENT since no record exists
+    ];
+    
+    // Save the sample records
+    const updatedRecords = [...records, ...sampleRecords];
+    saveAttendanceRecords(updatedRecords);
+  }
 };
 
 // ========================================

@@ -24,7 +24,8 @@ import {
   exportToCSV, 
   getWeeklySummary,
   students,
-  getTodayAttendanceStatus
+  getTodayAttendanceStatus,
+  addSampleTodayAttendance
 } from '@/lib/attendanceData';
 import { AttendanceRecord } from '@/types/attendance';
 import { Users, UserCheck, Clock, UserX, Download, Calendar } from 'lucide-react';
@@ -40,6 +41,9 @@ const AdminDashboard = () => {
   useEffect(() => {
     const loadData = () => {
       try {
+        // Add sample today's attendance data for demonstration
+        addSampleTodayAttendance();
+        
         const statsData = getDashboardStats();
         const weeklyDataResult = getWeeklySummary();
         const todayRecordsResult = getTodayAttendanceStatus(); // Use new function
