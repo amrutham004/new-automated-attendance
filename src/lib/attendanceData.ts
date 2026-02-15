@@ -622,17 +622,22 @@ export const verifyFaceWithBackend = async (
   }
 };
 
-// Get today's attendance status for specific students (first 3 students)
+// Get today's attendance status for specific students (matching the attendance table)
 export const getTodayAttendanceStatus = (): AttendanceRecord[] => {
   const today = new Date().toISOString().split('T')[0];
   const records = getAttendanceRecords();
   const todayRecords = records.filter(r => r.date === today);
   
-  // Get first 3 students and check their actual attendance status
-  const firstThreeStudents = students.slice(0, 3);
+  // Get students that match the attendance table shown in the image
+  const tableStudents = [
+    { id: '20221CIT0043', name: 'Amrutha M' },
+    { id: '20221CIT0051', name: 'Rashmi C' },
+    { id: '20221CIT0052', name: 'Sneha R' }
+  ];
+  
   const studentStatuses: AttendanceRecord[] = [];
   
-  firstThreeStudents.forEach(student => {
+  tableStudents.forEach(student => {
     const attendanceRecord = todayRecords.find(r => r.studentId === student.id);
     if (attendanceRecord) {
       // Use the actual attendance record if it exists
@@ -662,7 +667,7 @@ export const addSampleTodayAttendance = (): void => {
   // Check if we already have today's records
   const existingTodayRecords = records.filter(r => r.date === today);
   if (existingTodayRecords.length === 0) {
-    // Add sample records for first 2 students to demonstrate real data
+    // Add sample records for students to match the attendance table
     const sampleRecords: AttendanceRecord[] = [
       {
         studentId: '20221CIT0043',
@@ -674,15 +679,15 @@ export const addSampleTodayAttendance = (): void => {
         verified: true
       },
       {
-        studentId: '20221CIT0045',
-        studentName: 'Rahul S',
+        studentId: '20221CIT0051',
+        studentName: 'Rashmi C',
         date: today,
-        time: '13:45',
-        status: 'LATE_PRESENT',
+        time: '09:30',
+        status: 'PRESENT',
         method: 'qr_scan',
         verified: true
       }
-      // Note: C M Shalini (20221CIT0049) will show as ABSENT since no record exists
+      // Note: Sneha R (20221CIT0052) will show as ABSENT since no record exists
     ];
     
     // Save the sample records
