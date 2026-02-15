@@ -622,6 +622,37 @@ export const verifyFaceWithBackend = async (
   }
 };
 
+// Get today's attendance status for specific students (first 3 students)
+export const getTodayAttendanceStatus = (): AttendanceRecord[] => {
+  const today = new Date().toISOString().split('T')[0];
+  const records = getAttendanceRecords();
+  const todayRecords = records.filter(r => r.date === today);
+  
+  // Get first 3 students and check their status
+  const firstThreeStudents = students.slice(0, 3);
+  const studentStatuses: AttendanceRecord[] = [];
+  
+  firstThreeStudents.forEach(student => {
+    const attendanceRecord = todayRecords.find(r => r.studentId === student.id);
+    if (attendanceRecord) {
+      studentStatuses.push(attendanceRecord);
+    } else {
+      // If no record, mark as absent
+      studentStatuses.push({
+        studentId: student.id,
+        studentName: student.name,
+        date: today,
+        time: '-',
+        status: 'ABSENT',
+        method: 'auto',
+        verified: false
+      });
+    }
+  });
+  
+  return studentStatuses;
+};
+
 // ========================================
 // URL GENERATION
 // ========================================
