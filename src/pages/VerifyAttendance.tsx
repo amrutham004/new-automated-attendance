@@ -15,7 +15,7 @@ import Header from '@/components/attendance/Header';
 import Footer from '@/components/attendance/Footer';
 import Scene3D from '@/components/3d/Scene3D';
 import FloatingCard from '@/components/3d/FloatingCard';
-import { useAttendanceToken } from '@/lib/attendanceData';
+import { validateAttendanceToken, markAttendanceFromScan } from '@/lib/attendanceData';
 import { CheckCircle, XCircle, Clock, AlertCircle, Camera, Loader2 } from 'lucide-react';
 
 type Step = 'validating' | 'success' | 'error';
@@ -34,33 +34,23 @@ const VerifyAttendance = () => {
 
   useEffect(() => {
     if (!token) {
-      setStep('error');
       setMessage('No attendance token found. Please scan a valid QR code.');
       setErrorType('invalid');
       return;
     }
 
-    // Process the token
-    const result = useAttendanceToken(token);
+    // Process the token - call the function directly, not as a hook
+    const result = validateAttendanceToken(token);
     
-    if (result.success) {
-      setStep('success');
-      setMessage(result.message);
-      setStudentName(result.studentName || '');
-      setStudentId(result.studentId || '');
-    } else {
-      setStep('error');
-      setMessage(result.message);
-      setStudentName(result.studentName || '');
-      setStudentId(result.studentId || '');
+    if (result.valid) {
+      // Mark attendance using the regular function
+      const markResult = markAttendanceFromScan(result.studentId!);
       
-      // Determine error type
-      if (result.message.includes('expired')) {
-        setErrorType('expired');
-      } else if (result.message.includes('already been used')) {
-        setErrorType('used');
-      } else if (result.message.includes('already recorded')) {
-        setErrorType('already');
+      if (markResult.success) {
+        setStep('success');
+        setMessage(markResult.message);
+        setStudentName(markResult.studentName || '');
+        setStudentId(result.studentId || '');
       } else {
         setErrorType('invalid');
       }

@@ -21,12 +21,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { getStudents, getStudentPhoto, saveStudentPhoto } from '@/lib/attendanceData';
+import { Student } from '@/types/attendance';
 import { Upload, User, Check, X, Image } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const StudentPhotoUpload = () => {
   // State for selected student and photo
-  const [students, setStudents] = useState<any[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [existingPhoto, setExistingPhoto] = useState<string | null>(null);
@@ -52,7 +53,7 @@ const StudentPhotoUpload = () => {
       }
     };
     loadStudents();
-  }, []);
+  }, [toast]);
 
   /**
    * Handle student selection from dropdown

@@ -25,6 +25,8 @@ export interface AttendanceRecord {
   date: string;         // Date in YYYY-MM-DD format
   time: string;         // Time in HH:MM format
   status: AttendanceStatus;
+  method?: string;      // How attendance was marked (qr_scan, face_recognition, manual)
+  verified?: boolean;   // Whether the attendance was verified
   faceImage?: string;   // Optional captured face image (base64)
 }
 

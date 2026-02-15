@@ -234,8 +234,19 @@ export const markAttendanceFromScan = (
   records.push(record);
   saveAttendanceRecords(records);
   
-  // Sync to backend if online
-  offlineManager.syncAttendance(record);
+  // Store in offline manager for sync when online
+  if (offlineManager.isOnline()) {
+    // If online, try to sync immediately
+    offlineManager.syncPendingRecords().catch(console.error);
+  } else {
+    // If offline, store for later sync
+    offlineManager.storeAttendanceRecord({
+      studentId: student.id,
+      studentName: student.name,
+      image: '', // No face image for QR scan
+      timestamp: new Date().toISOString()
+    }).catch(console.error);
+  }
   
   return { 
     success: true, 
