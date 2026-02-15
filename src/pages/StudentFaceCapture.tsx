@@ -30,7 +30,7 @@ import FloatingCard from '@/components/3d/FloatingCard';
 
 import GlassButton from '@/components/3d/GlassButton';
 
-import { getStudentById, hasMarkedAttendanceToday, saveFaceCapture, getFaceCapture } from '@/lib/attendanceData';
+import { getStudentById, hasMarkedAttendanceToday, saveFaceCapture, getFaceCapture, verifyFaceWithBackend } from '@/lib/attendanceData';
 
 import { Camera, X, RotateCcw, Check, AlertCircle, CheckCircle, User } from 'lucide-react';
 
@@ -260,18 +260,38 @@ const StudentFaceCapture = () => {
 
 
 
-  const confirmCapture = useCallback(() => {
-
+  const confirmCapture = useCallback(async () => {
     if (!capturedImage || !rollNo) return;
 
-    
+    const student = getStudentById(rollNo);
+    if (!student) {
+      setError('Student not found');
+      setStep('error');
+      return;
+    }
 
-    const today = new Date().toISOString().split('T')[0];
+    setStep('checking');
+    setError('');
 
-    saveFaceCapture(rollNo, today, capturedImage);
-
-    setStep('success');
-
+    try {
+      // Verify face with backend
+      const result = await verifyFaceWithBackend(student.id, student.name, capturedImage);
+      
+      if (result.success) {
+        // Save face capture locally
+        const today = new Date().toISOString().split('T')[0];
+        saveFaceCapture(rollNo, today, capturedImage);
+        
+        setStep('success');
+      } else {
+        setError(result.message);
+        setStep('error');
+      }
+    } catch (error) {
+      console.error('Face verification failed:', error);
+      setError('Face verification failed. Please try again.');
+      setStep('error');
+    }
   }, [capturedImage, rollNo]);
 
 
@@ -333,23 +353,17 @@ const StudentFaceCapture = () => {
 
 
         {/* Checking State */}
-
         {step === 'checking' && (
-
           <FloatingCard>
-
             <div className="text-center py-8">
-
-              <div className="animate-pulse text-cyan-400 font-medium">
-
-                Checking eligibility...
-
+              <div className="animate-pulse text-cyan-400 font-medium mb-2">
+                Verifying face...
               </div>
-
+              <p className="text-sm text-cyan-100/70">
+                Please wait while we verify your face and mark attendance
+              </p>
             </div>
-
           </FloatingCard>
-
         )}
 
 

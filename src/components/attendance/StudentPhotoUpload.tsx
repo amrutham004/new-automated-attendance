@@ -10,7 +10,7 @@
  * The uploaded photo serves as the reference for future face verification
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -20,12 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { students, getStudentPhoto, saveStudentPhoto } from '@/lib/attendanceData';
+import { getStudents, getStudentPhoto, saveStudentPhoto } from '@/lib/attendanceData';
 import { Upload, User, Check, X, Image } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const StudentPhotoUpload = () => {
   // State for selected student and photo
+  const [students, setStudents] = useState<any[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [existingPhoto, setExistingPhoto] = useState<string | null>(null);
@@ -34,6 +35,24 @@ const StudentPhotoUpload = () => {
   // Ref for file input
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Load students on component mount
+  useEffect(() => {
+    const loadStudents = async () => {
+      try {
+        const studentsData = await getStudents();
+        setStudents(studentsData);
+      } catch (error) {
+        console.error('Error loading students:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load students list.',
+          variant: 'destructive',
+        });
+      }
+    };
+    loadStudents();
+  }, []);
 
   /**
    * Handle student selection from dropdown

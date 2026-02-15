@@ -3,19 +3,70 @@ FastAPI Face Recognition Backend
 Automated Attendance System
 """
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from typing import Optional, List
-import base64
-import json
-from datetime import datetime, date
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 import sqlite3
-from pathlib import Path
-import uvicorn
+import json
+import base64
+import io
 import cv2
 import numpy as np
-from PIL import Image
+from datetime import datetime, date
+from pydantic import BaseModel
+import os
+import logging
+from typing import Optional, Dict, Any
+import hashlib
+import secrets
+import requests
+import smtplib
+from contextlib import contextmanager
+import time
+import uuid
+import re
+from pathlib import Path
+from threading import Thread
+from typing import List
+from fastapi import Query
+import uvicorn
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+# Security imports
+from auth import auth_manager, UserRole, LoginCredentials, Token
+from security import (
+    limiter, rate_limit_exceeded_handler, sanitize_input, 
+    validate_student_id, validate_email, log_security_event,
+    SecurityHeaders, InputValidator, audit_log, SecurityConfig,
+    brute_force, get_rate_limit
+)
+
+# Import configuration
+try:
+    from config import (
+        LOW_LIGHT_THRESHOLD, APPLY_HISTOGRAM_EQUALIZATION,
+        SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, ADMIN_EMAIL, EMAIL_ENABLED,
+        DB_FILE, DATA_DIR, LOG_LEVEL
+    )
+except ImportError:
+    # Fallback defaults if config.py is not available
+    LOW_LIGHT_THRESHOLD = 50.0
+    APPLY_HISTOGRAM_EQUALIZATION = True
+    SMTP_SERVER = "smtp.gmail.com"
+    SMTP_PORT = 587
+    SMTP_USERNAME = "your-email@gmail.com"
+    SMTP_PASSWORD = "your-app-password"
+    ADMIN_EMAIL = "admin@school.edu"
+    EMAIL_ENABLED = True
+    DB_FILE = Path(__file__).parent / 'data' / 'attendance.db'
+    DATA_DIR = Path(__file__).parent / 'data'
+    LOG_LEVEL = "INFO"
 
 # Try to import face recognition, but handle gracefully if not available
 try:
@@ -24,14 +75,34 @@ try:
     print("✅ Face recognition library loaded")
 except ImportError:
     FACE_RECOGNITION_AVAILABLE = False
-    print("⚠️  Face recognition library not available - using mock mode")
+    print("⚠️  Face recognition library not available - using OpenCV face recognition")
 
-# Initialize FastAPI
+# Import OpenCV face recognition
+try:
+    from opencv_face_recognition import OpenCVFaceRecognizer
+    OPENCV_FACE_RECOGNITION_AVAILABLE = True
+    print("✅ OpenCV face recognition loaded")
+except ImportError:
+    OPENCV_FACE_RECOGNITION_AVAILABLE = False
+    print("❌ OpenCV face recognition not available")
+
+# Initialize FastAPI app
 app = FastAPI(
-    title="Face Recognition Attendance API",
-    description="Backend API for automated attendance system",
-    version="1.0.0"
+    title="Automated Attendance System API",
+    description="Secure Face Recognition Attendance System",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
+
+# Security middleware
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "*.netlify.app"])
+app.add_middleware(SlowAPIMiddleware)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+# Security Bearer token
+security = HTTPBearer()
 
 # CORS
 app.add_middleware(
@@ -42,15 +113,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configuration
-BASE_DIR = Path(__file__).parent
-DATA_DIR = BASE_DIR / 'data'
+# Setup logging
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Ensure data directory exists
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+# Additional paths
 ENCODINGS_FILE = DATA_DIR / 'face_encodings.json'
 STUDENTS_FOLDER = DATA_DIR / 'student_images'
-DB_FILE = DATA_DIR / 'attendance.db'
-
 STUDENTS_FOLDER.mkdir(parents=True, exist_ok=True)
-DATA_DIR.mkdir(exist_ok=True)
+
+# Initialize OpenCV face recognizer if available
+opencv_recognizer = None
+if OPENCV_FACE_RECOGNITION_AVAILABLE:
+    opencv_recognizer = OpenCVFaceRecognizer(ENCODINGS_FILE, STUDENTS_FOLDER)
 
 # Pydantic Models
 class StudentPhotoUpload(BaseModel):
@@ -69,9 +150,24 @@ class QRAttendanceWithFace(BaseModel):
     studentName: str
     image: str
 
+class OfflineAttendanceRecord(BaseModel):
+    studentId: str
+    studentName: str
+    image: str
+    timestamp: str
+    syncStatus: str = "pending"
+
+class NotificationRecord(BaseModel):
+    recipient: str
+    subject: str
+    message: str
+    status: str = "pending"
+    created_at: str
+
 # Database Setup
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
+    """Initialize database tables only if they don't exist"""
+    conn = sqlite3.connect(str(DB_FILE.absolute()))
     cursor = conn.cursor()
     
     cursor.execute('''
@@ -96,50 +192,118 @@ def init_db():
             method TEXT DEFAULT 'face_recognition',
             confidence_score REAL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_offline INTEGER DEFAULT 0,
             FOREIGN KEY (student_id) REFERENCES students(student_id),
             UNIQUE(student_id, date)
         )
     ''')
     
+    # Face encodings table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS face_encodings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT NOT NULL,
+            encoding BLOB NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (student_id) REFERENCES students(student_id),
+            UNIQUE(student_id)
+        )
+    ''')
+    
+    # Notifications table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            recipient TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            message TEXT NOT NULL,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            sent_at TIMESTAMP,
+            retry_count INTEGER DEFAULT 0
+        )
+    ''')
+    
+    # Logs table for telemetry
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            event_type TEXT NOT NULL,
+            message TEXT,
+            student_id TEXT,
+            level TEXT DEFAULT 'INFO'
+        )
+    ''')
+    
+    # Offline attendance sync table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS offline_sync_queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT NOT NULL,
+            student_name TEXT NOT NULL,
+            date DATE NOT NULL,
+            check_in_time TIME NOT NULL,
+            method TEXT DEFAULT 'face_recognition',
+            confidence_score REAL,
+            client_timestamp TEXT,
+            sync_status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            retry_count INTEGER DEFAULT 0
+        )
+    ''')
+    
     conn.commit()
     conn.close()
-    print("✅ Database initialized")
+    print("✅ Database tables initialized")
 
 def seed_initial_students():
-    """Seed the database with initial real students"""
-    conn = sqlite3.connect(DB_FILE)
+    """Seed the database with initial real students only if table is empty"""
+    conn = sqlite3.connect(str(DB_FILE.absolute()))
     cursor = conn.cursor()
-    
-    # Real students to seed
-    students = [
-        ('20221CIT0043', 'Amrutha M', 'CIT 2022'),
-        ('20221CIT0049', 'CM Shalini', 'CIT 2022'),
-        ('20221CIT0151', 'Vismaya L', 'CIT 2022')
-    ]
-    
-    for student_id, name, grade in students:
-        cursor.execute('''
-            INSERT OR IGNORE INTO students (student_id, name, grade)
-            VALUES (?, ?, ?)
-        ''', (student_id, name, grade))
-        print(f"✅ Seeded student: {student_id} - {name}")
-    
-    conn.commit()
-    conn.close()
-    print("✅ Initial students seeded successfully")
 
+    cursor.execute('SELECT COUNT(*) FROM students')
+    count = cursor.fetchone()[0]
+
+    if count == 0:
+        print("Students table is empty, seeding initial data...")
+
+        initial_students = [
+            ('20221CIT0043', 'Amrutha M', 'CIT 2022'),
+            ('20221CIT0049', 'C M Shalini', 'CIT 2022'),
+            ('20221CIT0151', 'Vismaya L', 'CIT 2022')
+        ]
+
+        for student_id, name, grade in initial_students:
+            cursor.execute('''
+                INSERT OR IGNORE INTO students 
+                (student_id, name, grade, has_face_encoding)
+                VALUES (?, ?, ?, 0)
+            ''', (student_id, name, grade))
+
+        conn.commit()
+        print("Initial students seeded successfully")
+    else:
+        print(f"Students table already has {count} records, skipping seed")
+
+    conn.close()
+
+
+
+# Initialize database on startup
 init_db()
 seed_initial_students()
 
 # Face Encoding Functions
 def load_encodings():
     if ENCODINGS_FILE.exists():
-        with open(ENCODINGS_FILE, 'r') as f:
+        with open(ENCODINGS_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
             for student_id in data:
                 data[student_id]['encoding'] = np.array(data[student_id]['encoding'])
             return data
     return {}
+
 
 def save_encodings(encodings):
     data = {}
@@ -148,7 +312,7 @@ def save_encodings(encodings):
             'name': info['name'],
             'encoding': info['encoding'].tolist()
         }
-    with open(ENCODINGS_FILE, 'w') as f:
+    with open(ENCODINGS_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2)
 
 known_encodings = load_encodings()
@@ -171,8 +335,223 @@ def decode_base64_image(image_data: str) -> np.ndarray:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image: {str(e)}")
 
+def detect_low_light(image: np.ndarray) -> dict:
+    """
+    Detect if image has low lighting conditions
+    
+    Args:
+        image: RGB image as numpy array
+        
+    Returns:
+        dict: Contains brightness value and low_light status
+    """
+    try:
+        # Convert to grayscale
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        
+        # Calculate average brightness
+        avg_brightness = np.mean(gray)
+        
+        # Determine if low light
+        is_low_light = avg_brightness < LOW_LIGHT_THRESHOLD
+        
+        result = {
+            "brightness": float(avg_brightness),
+            "is_low_light": is_low_light,
+            "threshold": LOW_LIGHT_THRESHOLD
+        }
+        
+        # Log low light detection
+        log_event("LOW_LIGHT_DETECTION", 
+                 f"Image brightness: {avg_brightness:.2f}, Low light: {is_low_light}",
+                 details=json.dumps(result))
+        
+        return result
+    except Exception as e:
+        log_event("LOW_LIGHT_DETECTION_ERROR", f"Error in low-light detection: {str(e)}")
+        return {"brightness": 0.0, "is_low_light": False, "threshold": LOW_LIGHT_THRESHOLD}
+
+def enhance_low_light_image(image: np.ndarray) -> np.ndarray:
+    """
+    Enhance image using histogram equalization for low-light conditions
+    
+    Args:
+        image: RGB image as numpy array
+        
+    Returns:
+        Enhanced RGB image as numpy array
+    """
+    try:
+        # Convert to LAB color space
+        lab = cv2.cvtColor(image, cv2.COLOR_RGB2LAB)
+        l, a, b = cv2.split(lab)
+        
+        # Apply histogram equalization to L channel
+        l_eq = cv2.equalizeHist(l)
+        
+        # Merge channels back
+        lab_eq = cv2.merge([l_eq, a, b])
+        
+        # Convert back to RGB
+        enhanced = cv2.cvtColor(lab_eq, cv2.COLOR_LAB2RGB)
+        
+        log_event("LOW_LIGHT_ENHANCEMENT", "Applied histogram equalization to enhance image")
+        
+        return enhanced
+    except Exception as e:
+        log_event("LOW_LIGHT_ENHANCEMENT_ERROR", f"Error enhancing low-light image: {str(e)}")
+        return image  # Return original if enhancement fails
+
+def log_event(event_type: str, message: str, student_id: str = None, details: str = None, level: str = "INFO"):
+    """
+    Log events to database for telemetry
+    
+    Args:
+        event_type: Type of event (e.g., 'ATTENDANCE_MARKED', 'LOW_LIGHT_DETECTED')
+        message: Log message
+        student_id: Optional student ID
+        details: Additional details as JSON string
+        level: Log level (INFO, WARNING, ERROR)
+    """
+    try:
+        conn = sqlite3.connect(str(DB_FILE.absolute()))
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO logs (event_type, message, details, student_id, level)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (event_type, message, details, student_id, level))
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        # Fallback to console logging if database logging fails
+        print(f"LOG ERROR: {str(e)}")
+        print(f"{level}: {event_type} - {message}")
+
+def send_email_notification(recipient: str, subject: str, message: str) -> bool:
+    """
+    Send email notification using SMTP
+    
+    Args:
+        recipient: Email address of recipient
+        subject: Email subject
+        message: Email body
+        
+    Returns:
+        bool: True if email sent successfully, False otherwise
+    """
+    if not EMAIL_ENABLED:
+        log_event("EMAIL_DISABLED", "Email notifications are disabled")
+        return False
+    
+    try:
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = SMTP_USERNAME
+        msg['To'] = recipient
+        msg['Subject'] = subject
+        
+        msg.attach(MIMEText(message, 'plain'))
+        
+        # Send email
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        text = msg.as_string()
+        server.sendmail(SMTP_USERNAME, recipient, text)
+        server.quit()
+        
+        log_event("EMAIL_SENT", f"Email sent successfully to {recipient}")
+        return True
+        
+    except Exception as e:
+        error_msg = f"Failed to send email to {recipient}: {str(e)}"
+        log_event("EMAIL_SEND_ERROR", error_msg, level="ERROR")
+        return False
+
+def queue_notification(recipient: str, subject: str, message: str):
+    """
+    Queue notification for sending
+    
+    Args:
+        recipient: Email address of recipient
+        subject: Email subject
+        message: Email body
+    """
+    try:
+        conn = sqlite3.connect(str(DB_FILE.absolute()))
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO notifications (recipient, subject, message, status)
+            VALUES (?, ?, ?, 'pending')
+        ''', (recipient, subject, message))
+        
+        conn.commit()
+        conn.close()
+        
+        log_event("NOTIFICATION_QUEUED", f"Notification queued for {recipient}")
+        
+        # Try to send immediately in background
+        def send_in_background():
+            time.sleep(1)  # Small delay to ensure database is committed
+            send_pending_notifications()
+        
+        Thread(target=send_in_background, daemon=True).start()
+        
+    except Exception as e:
+        log_event("NOTIFICATION_QUEUE_ERROR", f"Error queuing notification: {str(e)}", level="ERROR")
+
+def send_pending_notifications():
+    """
+    Send all pending notifications from the queue
+    """
+    try:
+        conn = sqlite3.connect(str(DB_FILE.absolute()))
+        cursor = conn.cursor()
+        
+        # Get pending notifications
+        cursor.execute('''
+            SELECT id, recipient, subject, message 
+            FROM notifications 
+            WHERE status = 'pending'
+            ORDER BY created_at ASC
+            LIMIT 10
+        ''')
+        
+        pending = cursor.fetchall()
+        
+        for notification in pending:
+            notification_id, recipient, subject, message = notification
+            
+            if send_email_notification(recipient, subject, message):
+                # Update status to sent
+                cursor.execute('''
+                    UPDATE notifications 
+                    SET status = 'sent', sent_at = CURRENT_TIMESTAMP 
+                    WHERE id = ?
+                ''', (notification_id,))
+            else:
+                # Update status to failed
+                cursor.execute('''
+                    UPDATE notifications 
+                    SET status = 'failed', error_message = 'SMTP send failed' 
+                    WHERE id = ?
+                ''', (notification_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        if pending:
+            log_event("BATCH_NOTIFICATIONS_SENT", f"Processed {len(pending)} pending notifications")
+            
+    except Exception as e:
+        log_event("BATCH_NOTIFICATION_ERROR", f"Error sending pending notifications: {str(e)}", level="ERROR")
+
 def get_db_connection():
-    conn = sqlite3.connect(DB_FILE)
+    """Get database connection with proper configuration"""
+    conn = sqlite3.connect(str(DB_FILE.absolute()))
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -189,25 +568,197 @@ def mock_face_compare(known_encoding, unknown_encoding, tolerance=0.6):
 def mock_face_distance(known_encodings, unknown_encoding):
     return [0.3]  # Mock distance
 
+# Authentication dependencies
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict:
+    """Get current authenticated user"""
+    token = credentials.credentials
+    payload = auth_manager.verify_token(token)
+    
+    if not payload:
+        log_security_event("INVALID_TOKEN", {"token": token[:20] + "..."})
+        raise HTTPException(status_code=401, detail="Invalid authentication token")
+    
+    user = auth_manager.get_user_by_id(payload["user_id"])
+    if not user:
+        log_security_event("USER_NOT_FOUND", {"user_id": payload["user_id"]})
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    return payload
+
+async def get_admin_user(current_user: Dict = Depends(get_current_user)) -> Dict:
+    """Get current admin user"""
+    if current_user.get("role") != UserRole.ADMIN.value:
+        log_security_event("UNAUTHORIZED_ACCESS", {
+            "user_id": current_user.get("user_id"),
+            "role": current_user.get("role"),
+            "required_role": "admin"
+        })
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+
+# Security middleware
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Add security headers and logging"""
+    # Log request
+    log_security_event("API_REQUEST", {
+        "method": request.method,
+        "path": request.url.path,
+        "ip": get_remote_address(request)
+    }, "INFO")
+    
+    response = await call_next(request)
+    
+    # Add security headers
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    
+    return response
+
+# Authentication endpoints
+@app.post("/api/auth/login")
+@limiter.limit(get_rate_limit("login"))
+async def login(request: Request, credentials: LoginCredentials):
+    """User login endpoint"""
+    # Check brute force protection
+    ip = get_remote_address(request)
+    if brute_force.is_locked_out(ip):
+        remaining_time = brute_force.get_remaining_lockout_time(ip)
+        log_security_event("LOGIN_LOCKED_OUT", {"ip": ip, "remaining_time": remaining_time})
+        raise HTTPException(
+            status_code=429, 
+            detail=f"Too many failed attempts. Try again in {remaining_time} seconds"
+        )
+    
+    # Validate input
+    if not validate_email(credentials.email):
+        log_security_event("INVALID_EMAIL", {"email": credentials.email})
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    
+    # Authenticate user
+    user = auth_manager.authenticate_user(credentials.email, credentials.password)
+    if not user:
+        # Record failed attempt
+        brute_force.record_failed_attempt(ip)
+        log_security_event("LOGIN_FAILED", {"email": credentials.email, "ip": ip})
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # Reset failed attempts on successful login
+    if ip in brute_force.failed_attempts:
+        del brute_force.failed_attempts[ip]
+    
+    # Create access token
+    access_token = auth_manager.create_access_token(user)
+    
+    audit_log("USER_LOGIN", user.user_id, {"email": user.email})
+    
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        user_role=user.role.value,
+        user_id=user.user_id
+    )
+
+@app.post("/api/auth/logout")
+async def logout(current_user: Dict = Depends(get_current_user)):
+    """User logout endpoint"""
+    audit_log("USER_LOGOUT", current_user.get("user_id"))
+    return {"message": "Successfully logged out"}
+
+@app.get("/api/auth/me")
+async def get_current_user_info(current_user: Dict = Depends(get_current_user)):
+    """Get current user information"""
+    user = auth_manager.get_user_by_id(current_user["user_id"])
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "user_id": user.user_id,
+        "email": user.email,
+        "role": user.role.value,
+        "is_active": user.is_active
+    }
+
+@app.post("/api/auth/register")
+@limiter.limit("5/minute")
+async def register_user(request: Request, user_data: dict):
+    """Register new user (admin only)"""
+    # Validate input
+    required_fields = ["user_id", "email", "password", "role"]
+    for field in required_fields:
+        if field not in user_data:
+            raise HTTPException(status_code=400, detail=f"Missing field: {field}")
+    
+    # Validate email
+    if not validate_email(user_data["email"]):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    
+    # Validate password
+    is_valid, error_msg = SecurityConfig.validate_password(user_data["password"])
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    # Validate role
+    try:
+        role = UserRole(user_data["role"])
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    
+    # Create user
+    success = auth_manager.create_user(
+        user_id=user_data["user_id"],
+        email=user_data["email"],
+        password=user_data["password"],
+        role=role
+    )
+    
+    if not success:
+        raise HTTPException(status_code=400, detail="User already exists")
+    
+    audit_log("USER_REGISTERED", user_data["user_id"], {"email": user_data["email"], "role": role.value})
+    
+    return {"message": "User created successfully"}
+
 # API Endpoints
 @app.get("/")
 async def root():
+    # Get correct student count
+    if OPENCV_FACE_RECOGNITION_AVAILABLE and opencv_recognizer:
+        student_count = len(opencv_recognizer.get_registered_students())
+    else:
+        student_count = len(known_encodings)
+    
     return {
-        "message": "Face Recognition Attendance API",
+        "status": "running",
         "version": "1.0.0",
         "docs": "/docs",
-        "registered_students": len(known_encodings),
-        "face_recognition_available": FACE_RECOGNITION_AVAILABLE
+        "registered_students": student_count,
+        "face_recognition_available": FACE_RECOGNITION_AVAILABLE,
+        "opencv_face_recognition_available": OPENCV_FACE_RECOGNITION_AVAILABLE,
+        "active_recognition_system": "opencv" if OPENCV_FACE_RECOGNITION_AVAILABLE else ("face_recognition" if FACE_RECOGNITION_AVAILABLE else "mock")
     }
 
 @app.get("/api/health")
 async def health_check():
+    stats = opencv_recognizer.get_stats() if opencv_recognizer else {}
+    
+    # Get correct student count
+    if OPENCV_FACE_RECOGNITION_AVAILABLE and opencv_recognizer:
+        student_count = len(opencv_recognizer.get_registered_students())
+    else:
+        student_count = len(known_encodings)
+    
     return {
-        "status": "ok",
+        "status": "healthy",
         "message": "API is running",
         "timestamp": datetime.now().isoformat(),
-        "registered_students": len(known_encodings),
-        "face_recognition_available": FACE_RECOGNITION_AVAILABLE
+        "registered_students": student_count,
+        "face_recognition_available": FACE_RECOGNITION_AVAILABLE,
+        "opencv_face_recognition_available": OPENCV_FACE_RECOGNITION_AVAILABLE,
+        "active_recognition_system": "opencv" if OPENCV_FACE_RECOGNITION_AVAILABLE else ("face_recognition" if FACE_RECOGNITION_AVAILABLE else "mock"),
+        "opencv_stats": stats
     }
 
 @app.post("/api/admin/upload-student-photo")
@@ -215,7 +766,43 @@ async def upload_student_photo(student: StudentPhotoUpload):
     try:
         rgb_image = decode_base64_image(student.image)
         
-        if FACE_RECOGNITION_AVAILABLE:
+        # Use OpenCV face recognition if available
+        if OPENCV_FACE_RECOGNITION_AVAILABLE and opencv_recognizer:
+            # Register face with OpenCV
+            success = opencv_recognizer.register_face(student.studentId, rgb_image)
+            
+            if not success:
+                raise HTTPException(status_code=400, detail="Failed to register face - no face detected or multiple faces")
+            
+            # Save image
+            image_path = STUDENTS_FOLDER / f"{student.studentId}.jpg"
+            image_bgr = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(str(image_path), image_bgr)
+            
+            # Update database
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO students 
+                (student_id, name, grade, photo_path, has_face_encoding) 
+                VALUES (?, ?, ?, ?, 1)
+            ''', (student.studentId, student.studentName, student.grade, str(image_path)))
+            conn.commit()
+            conn.close()
+            
+            log_event("FACE_REGISTERED", 
+                     f"Face registered for student {student.studentName} ({student.studentId}) using OpenCV",
+                     student_id=student.studentId)
+            
+            return {
+                "success": True,
+                "message": f"Student {student.studentName} registered successfully with OpenCV",
+                "studentId": student.studentId,
+                "opencv_mode": True
+            }
+        
+        # Fallback to original face_recognition library
+        elif FACE_RECOGNITION_AVAILABLE:
             face_locations = face_recognition.face_locations(rgb_image)
             if len(face_locations) == 0:
                 raise HTTPException(status_code=400, detail="No face detected")
@@ -262,12 +849,37 @@ async def upload_student_photo(student: StudentPhotoUpload):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/verify-face")
-async def verify_face(data: FaceVerificationRequest):
+@limiter.limit(get_rate_limit("face_verify"))
+async def verify_face(request: Request, data: FaceVerificationRequest, current_user: Dict = Depends(get_current_user)):
+    """Verify face for attendance (authenticated users only)"""
     try:
+        # Validate input
+        if not validate_student_id(data.studentId):
+            log_security_event("INVALID_STUDENT_ID", {"student_id": data.studentId})
+            raise HTTPException(status_code=400, detail="Invalid student ID format")
+        
+        data.studentName = sanitize_input(data.studentName)
+        if not data.studentName:
+            raise HTTPException(status_code=400, detail="Student name is required")
+        
+        if not InputValidator.validate_face_image(data.image):
+            log_security_event("INVALID_IMAGE", {"student_id": data.studentId})
+            raise HTTPException(status_code=400, detail="Invalid image data")
+        
         image_data = data.image.encode('utf-8') if isinstance(data.image, str) else data.image
         result = recognize_face_from_image(image_data, data.studentId)
         
         if not result["match"]:
+            log_security_event("FACE_VERIFICATION_FAILED", 
+                             f"Face verification failed for {data.studentId}: {result.get('message', 'Unknown error')}",
+                             student_id=data.studentId,
+                             level="WARNING")
+            
+            audit_log("FACE_VERIFICATION_FAILED", current_user.get("user_id"), {
+                "student_id": data.studentId,
+                "reason": result.get('message', 'Unknown error')
+            })
+            
             return {
                 "success": False,
                 "verified": False,
@@ -275,31 +887,29 @@ async def verify_face(data: FaceVerificationRequest):
                 "confidenceScore": 0
             }
         
-        current_date = date.today()
-        current_time = datetime.now().time()
-        
+        # Check for duplicate attendance
         conn = get_db_connection()
         cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM attendance 
+            WHERE student_id = ? AND date = ? AND method = 'face'
+        ''', (result["student_id"], date.today().isoformat()))
+        existing = cursor.fetchone()
+        conn.close()
         
-        try:
-            cursor.execute('''
-                INSERT INTO attendance 
-                (student_id, student_name, date, check_in_time, method, confidence_score)
-                VALUES (?, ?, ?, ?, 'face_recognition', ?)
-            ''', (result["student_id"], result["student_name"], current_date, current_time, result["confidence"]))
-            conn.commit()
+        if existing:
+            log_security_event("DUPLICATE_ATTENDANCE", 
+                             f"Duplicate face verification attempt for {result['student_id']}",
+                             student_id=result["student_id"],
+                             level="WARNING")
             
             return {
-                "success": True,
-                "verified": True,
-                "message": f"Welcome {result['student_name']}! Attendance marked successfully.",
-                "confidenceScore": result["confidence"],
-                "studentId": result["student_id"],
-                "studentName": result["student_name"],
-                "timestamp": datetime.now().isoformat(),
-                "mock_mode": not FACE_RECOGNITION_AVAILABLE
+                "success": False,
+                "verified": False,
+                "message": "Attendance already marked for today",
+                "confidenceScore": result.get("confidence", 0)
             }
-        except sqlite3.IntegrityError:
+            
             return {
                 "success": True,
                 "verified": True,
@@ -310,6 +920,204 @@ async def verify_face(data: FaceVerificationRequest):
                 "alreadyMarked": True,
                 "mock_mode": not FACE_RECOGNITION_AVAILABLE
             }
+        
+    except Exception as e:
+        log_event("FACE_VERIFICATION_ERROR", f"Error in face verification: {str(e)}", student_id=data.studentId, level="ERROR")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 2. INDEXEDDB OFFLINE ATTENDANCE SYNC ENDPOINTS
+@app.post("/api/sync-offline-attendance")
+async def sync_offline_attendance(records: List[OfflineAttendanceRecord]):
+    """
+    Receive batched offline attendance records and sync them to the database
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        results = []
+        success_count = 0
+        failure_count = 0
+        
+        for record in records:
+            try:
+                # Verify face for each record
+                image_data = record.image.encode('utf-8') if isinstance(record.image, str) else record.image
+                face_result = recognize_face_from_image(image_data, record.studentId)
+                
+                if not face_result["match"]:
+                    results.append({
+                        "studentId": record.studentId,
+                        "success": False,
+                        "message": face_result.get("message", "Face verification failed")
+                    })
+                    failure_count += 1
+                    continue
+                
+                # Parse timestamp
+                try:
+                    timestamp = datetime.fromisoformat(record.timestamp.replace('Z', '+00:00'))
+                    attendance_date = timestamp.date()
+                    attendance_time = timestamp.time()
+                except:
+                    attendance_date = date.today()
+                    attendance_time = datetime.now().time()
+                
+                # Insert attendance record
+                cursor.execute('''
+                    INSERT INTO attendance 
+                    (student_id, student_name, date, check_in_time, method, confidence_score, is_offline)
+                    VALUES (?, ?, ?, ?, 'face_recognition', ?, 1)
+                ''', (face_result["student_id"], face_result["student_name"], 
+                      attendance_date, attendance_time, face_result["confidence"]))
+                
+                results.append({
+                    "studentId": record.studentId,
+                    "success": True,
+                    "message": "Offline attendance synced successfully"
+                })
+                success_count += 1
+                
+                # Log offline sync
+                log_event("OFFLINE_ATTENDANCE_SYNCED", 
+                         f"Offline attendance synced for {face_result['student_name']} ({face_result['student_id']})",
+                         student_id=face_result["student_id"])
+                
+            except Exception as e:
+                results.append({
+                    "studentId": record.studentId,
+                    "success": False,
+                    "message": f"Error processing record: {str(e)}"
+                })
+                failure_count += 1
+                log_event("OFFLINE_SYNC_ERROR", 
+                         f"Error syncing offline attendance for {record.studentId}: {str(e)}",
+                         student_id=record.studentId,
+                         level="ERROR")
+        
+        conn.commit()
+        conn.close()
+        
+        # Queue notification for admin about batch sync
+        if success_count > 0:
+            queue_notification(
+                ADMIN_EMAIL,
+                f"Offline Attendance Sync Completed",
+                f"Successfully synced {success_count} offline attendance records.\n" +
+                (f"Failed to sync {failure_count} records." if failure_count > 0 else "") +
+                f"\n\nSync completed at {datetime.now().strftime('%Y-%m-%d %I:%M %p')}"
+            )
+        
+        log_event("BATCH_OFFLINE_SYNC", 
+                 f"Batch sync completed: {success_count} success, {failure_count} failed")
+        
+        return {
+            "success": True,
+            "message": f"Processed {len(records)} records",
+            "results": results,
+            "summary": {
+                "total": len(records),
+                "success": success_count,
+                "failed": failure_count
+            }
+        }
+        
+    except Exception as e:
+        log_event("BATCH_SYNC_ERROR", f"Error in batch offline sync: {str(e)}", level="ERROR")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 3. NOTIFICATION ENDPOINTS
+@app.get("/api/notifications/status")
+async def get_notification_status():
+    """
+    Get status of pending notifications
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT status, COUNT(*) as count 
+            FROM notifications 
+            GROUP BY status
+        ''')
+        
+        status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
+        
+        conn.close()
+        
+        return {
+            "pending": status_counts.get('pending', 0),
+            "sent": status_counts.get('sent', 0),
+            "failed": status_counts.get('failed', 0),
+            "total": sum(status_counts.values())
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/notifications/retry")
+async def retry_failed_notifications():
+    """
+    Retry sending failed notifications
+    """
+    try:
+        send_pending_notifications()
+        return {"success": True, "message": "Notification retry initiated"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 4. TELEMETRY & LOGGING ENDPOINTS
+@app.get("/api/logs/recent")
+async def get_recent_logs(limit: int = 50, event_type: str = None):
+    """
+    Get recent logs for telemetry
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        query = '''
+            SELECT event_type, message, details, student_id, timestamp, level
+            FROM logs
+        '''
+        params = []
+        
+        if event_type:
+            query += ' WHERE event_type = ?'
+            params.append(event_type)
+        
+        query += ' ORDER BY timestamp DESC LIMIT ?'
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        logs = [dict(row) for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return {
+            "logs": logs,
+            "count": len(logs)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/logs/events")
+async def get_event_types():
+    """
+    Get available event types for filtering
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT DISTINCT event_type FROM logs ORDER BY event_type')
+        event_types = [row['event_type'] for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return {"event_types": event_types}
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -391,6 +1199,7 @@ async def get_today_attendance_list():
 @app.get("/api/students")
 async def get_all_students():
     try:
+        # Get students from SQLite database
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM students ORDER BY name')
@@ -406,6 +1215,22 @@ async def get_all_students():
                 "hasFaceEncoding": bool(row['has_face_encoding']),
                 "createdAt": row['created_at']
             })
+        
+        # Add students from OpenCV system if not in SQLite
+        if OPENCV_FACE_RECOGNITION_AVAILABLE and opencv_recognizer:
+            opencv_students = opencv_recognizer.get_registered_students()
+            for student_id in opencv_students:
+                # Check if already in list
+                if not any(s['id'] == student_id for s in students):
+                    # Get student name from OpenCV label map
+                    student_name = opencv_recognizer.label_map.get(student_id, f"Student {student_id}")
+                    students.append({
+                        "id": student_id,
+                        "name": student_name,
+                        "grade": "CIT 2022",
+                        "hasFaceEncoding": True,
+                        "createdAt": datetime.now().isoformat()
+                    })
         
         return {
             "success": True,
@@ -483,7 +1308,89 @@ def recognize_face_from_image(image_data: bytes, expected_student_id: str = None
         # Decode image
         image = decode_base64_image(image_data)
         
-        if FACE_RECOGNITION_AVAILABLE:
+        # Check for low-light conditions
+        low_light_result = detect_low_light(image)
+        
+        if low_light_result["is_low_light"]:
+            if APPLY_HISTOGRAM_EQUALIZATION:
+                # Try to enhance the image
+                image = enhance_low_light_image(image)
+                # Re-check brightness after enhancement
+                enhanced_check = detect_low_light(image)
+                if enhanced_check["is_low_light"]:
+                    log_event("LOW_LIGHT_REJECTION", 
+                             f"Image too dark even after enhancement: {enhanced_check['brightness']:.2f}",
+                             student_id=expected_student_id,
+                             level="WARNING")
+                    return {
+                        "match": False,
+                        "message": "LOW_LIGHT_DETECTED",
+                        "brightness": enhanced_check["brightness"],
+                        "threshold": LOW_LIGHT_THRESHOLD
+                    }
+            else:
+                log_event("LOW_LIGHT_REJECTION", 
+                         f"Image too dark: {low_light_result['brightness']:.2f}",
+                         student_id=expected_student_id,
+                         level="WARNING")
+                return {
+                    "match": False,
+                    "message": "LOW_LIGHT_DETECTED",
+                    "brightness": low_light_result["brightness"],
+                    "threshold": LOW_LIGHT_THRESHOLD
+                }
+        
+        # Use OpenCV face recognition if available
+        if OPENCV_FACE_RECOGNITION_AVAILABLE and opencv_recognizer:
+            result = opencv_recognizer.recognize_face(image, confidence_threshold=60.0)
+            
+            if result["match"]:
+                # CRITICAL SECURITY CHECK: Verify the recognized face matches expected student
+                if expected_student_id and result["student_id"] != expected_student_id:
+                    log_event("FACE_MISMATCH", 
+                             f"Face recognized as {result['student_id']} but expected {expected_student_id}",
+                             student_id=expected_student_id,
+                             level="WARNING")
+                    return {
+                        "match": False,
+                        "message": f"Face does not match expected student. Recognized as {result['student_id']}, but expected {expected_student_id}",
+                        "recognized_student_id": result["student_id"],
+                        "expected_student_id": expected_student_id,
+                        "confidence": result["confidence"]
+                    }
+                
+                # Get student name from database
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute('SELECT name FROM students WHERE student_id = ?', (result["student_id"],))
+                student_row = cursor.fetchone()
+                conn.close()
+                
+                if student_row:
+                    log_event("FACE_VERIFICATION_SUCCESS", 
+                             f"Face successfully verified for {result['student_id']}",
+                             student_id=result["student_id"])
+                    return {
+                        "match": True,
+                        "student_id": result["student_id"],
+                        "student_name": student_row['name'],
+                        "confidence": result["confidence"],
+                        "message": result["message"]
+                    }
+                else:
+                    return {
+                        "match": False,
+                        "message": f"Student {result['student_id']} not found in database"
+                    }
+            else:
+                return {
+                    "match": False,
+                    "message": result["message"],
+                    "confidence": result.get("confidence", 0.0)
+                }
+        
+        # Fallback to original face_recognition library if available
+        elif FACE_RECOGNITION_AVAILABLE:
             # Real face recognition
             face_locations = face_recognition.face_locations(image, model="hog")
             
@@ -593,15 +1500,17 @@ def recognize_face_from_image(image_data: bytes, expected_student_id: str = None
         }
 
 # Startup
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("=" * 70)
-    print("🚀 FastAPI Face Recognition Backend")
+    print("AUTOMATED ATTENDANCE SYSTEM - BACKEND")
     print("=" * 70)
-    print(f"📁 Data: {DATA_DIR}")
-    print(f"🖼️  Images: {STUDENTS_FOLDER}")
-    print(f"👥 Students: {len(known_encodings)}")
-    print(f"📚 Docs: http://localhost:8000/docs or http://192.168.0.108:8000/docs")
-    print(f"🔧 Face Recognition: {'Available' if FACE_RECOGNITION_AVAILABLE else 'Mock Mode'}")
+    print(f"API Docs: http://localhost:8000/docs or http://192.168.0.108:8000/docs")
+    print(f"Images: {STUDENTS_FOLDER}")
+    print(f"Students: {len(known_encodings)}")
+    print(f"Face Recognition: {('OpenCV' if OPENCV_FACE_RECOGNITION_AVAILABLE else ('face_recognition' if FACE_RECOGNITION_AVAILABLE else 'Mock Mode'))}")
+    if OPENCV_FACE_RECOGNITION_AVAILABLE and opencv_recognizer:
+        stats = opencv_recognizer.get_stats()
+        print(f"OpenCV Stats: {stats['registered_students']} registered, {stats['total_samples']} samples")
     print("=" * 70)
     
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)

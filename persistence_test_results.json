@@ -1,0 +1,12 @@
+{
+  "test_start": "2026-02-15T12:25:34.887689",
+  "steps": [
+    {
+      "step": "health_check",
+      "success": false,
+      "details": {
+        "error": "Server not accessible: HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/health (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))"
+      }
+    }
+  ]
+}

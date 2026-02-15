@@ -21,15 +21,16 @@ import {
   getStudentStats, 
   getStudentById, 
   getAttendanceRecords,
-  students 
+  students
 } from '@/lib/attendanceData';
-import { StudentStats, Student } from '@/types/attendance';
+import { StudentStats, Student, AttendanceRecord } from '@/types/attendance';
 import { CalendarCheck, CalendarX, Clock, Search, User, TrendingUp } from 'lucide-react';
 
 const StudentDashboard = () => {
   const [studentId, setStudentId] = useState('');
   const [searchedStudent, setSearchedStudent] = useState<Student | null>(null);
   const [stats, setStats] = useState<StudentStats | null>(null);
+  const [studentRecords, setStudentRecords] = useState<AttendanceRecord[]>([]);
   const [error, setError] = useState('');
 
   const handleSearch = (e: React.FormEvent) => {
@@ -41,19 +42,21 @@ const StudentDashboard = () => {
       setError('Student ID not found. Please check and try again.');
       setSearchedStudent(null);
       setStats(null);
+      setStudentRecords([]);
       return;
     }
 
     setSearchedStudent(student);
-    setStats(getStudentStats(student.id));
+    const studentStats = getStudentStats(student.id);
+    setStats(studentStats);
+    
+    const records = getAttendanceRecords();
+    const filteredRecords = records
+      .filter(r => r.studentId === student.id)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 10);
+    setStudentRecords(filteredRecords);
   };
-
-  const studentRecords = searchedStudent 
-    ? getAttendanceRecords()
-        .filter(r => r.studentId === searchedStudent.id)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 10)
-    : [];
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-900 via-teal-800 to-emerald-900 text-white overflow-hidden">
@@ -67,188 +70,139 @@ const StudentDashboard = () => {
             Student Dashboard
           </h1>
           <p className="text-teal-100/70">
-            View your attendance history and statistics
+            Search for a student to view their attendance statistics
           </p>
         </div>
 
         {/* Search Form */}
         <FloatingCard className="mb-8">
-          <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="studentSearch" className="text-teal-100">Enter Your Student ID</Label>
-              <Input
-                id="studentSearch"
-                placeholder="e.g., 20221CIT0043"
-                value={studentId}
-                onChange={(e) => setStudentId(e.target.value)}
-                className="font-mono uppercase bg-white/10 border-white/20 text-white placeholder:text-white/40"
-              />
-              <p className="text-xs text-teal-200/60">
-                Valid IDs: {students.slice(0, 3).map(s => s.id).join(', ')}
-              </p>
-            </div>
-            <div className="flex items-end">
-              <GlassButton>
-                <Search size={16} />
-                View Dashboard
+          <form onSubmit={handleSearch} className="space-y-4">
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <Label htmlFor="studentId">Student ID</Label>
+                <Input
+                  id="studentId"
+                  type="text"
+                  placeholder="Enter Student ID (e.g., 20221CIT0043)"
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value)}
+                  className="bg-white/10 border-white/20 text-white placeholder-teal-200/50"
+                />
+              </div>
+              <GlassButton disabled={!studentId.trim()}>
+                <Search size={20} className="mr-2" />
+                Search
               </GlassButton>
             </div>
+            {error && (
+              <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 text-red-300">
+                {error}
+              </div>
+            )}
           </form>
-          {error && (
-            <p className="mt-4 text-sm text-red-400">{error}</p>
-          )}
         </FloatingCard>
 
-        {/* Student Info */}
+        {/* Student Results */}
         {searchedStudent && stats && (
-          <div className="animate-fade-in space-y-6">
-            {/* Student Header */}
-            <FloatingCard glowColor="rgba(45, 212, 191, 0.3)">
-              <div className="flex flex-col sm:flex-row items-center gap-6">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-500 via-teal-500 to-blue-500 flex items-center justify-center shadow-lg shadow-teal-500/30">
-                  <User size={36} className="text-white" />
+          <>
+            {/* Student Info Card */}
+            <FloatingCard className="mb-8">
+              <div className="flex items-center gap-6">
+                <div className="w-20 h-20 rounded-full bg-teal-500/20 flex items-center justify-center">
+                  <User size={40} className="text-teal-400" />
                 </div>
-                <div className="text-center sm:text-left flex-1">
-                  <h2 className="text-xl font-bold font-display text-white">{searchedStudent.name}</h2>
-                  <p className="text-teal-200/70">
-                    ID: {searchedStudent.id} • Grade: {searchedStudent.grade}
-                  </p>
-                </div>
-                {/* Attendance Circle */}
-                <div className="relative w-24 h-24">
-                  <svg className="w-full h-full -rotate-90">
-                    <circle
-                      cx="48" cy="48" r="42"
-                      fill="none"
-                      stroke="rgba(255,255,255,0.1)"
-                      strokeWidth="8"
-                    />
-                    <circle
-                      cx="48" cy="48" r="42"
-                      fill="none"
-                      stroke={stats.attendancePercentage >= 90 ? '#22c55e' : stats.attendancePercentage >= 75 ? '#f59e0b' : '#ef4444'}
-                      strokeWidth="8"
-                      strokeLinecap="round"
-                      strokeDasharray={`${(stats.attendancePercentage / 100) * 264} 264`}
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xl font-bold text-white">{stats.attendancePercentage}%</span>
-                  </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-1">{searchedStudent.name}</h2>
+                  <p className="text-teal-200/70">{searchedStudent.id} - {searchedStudent.grade}</p>
                 </div>
               </div>
             </FloatingCard>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { title: 'Total Days', value: stats.totalDays, icon: CalendarCheck, color: 'teal' },
-                { title: 'Present', value: stats.daysPresent, icon: CalendarCheck, color: 'green' },
-                { title: 'Late', value: stats.daysLate, icon: Clock, color: 'yellow' },
-                { title: 'Absent', value: stats.daysAbsent, icon: CalendarX, color: 'red' },
-              ].map((stat) => (
-                <div 
-                  key={stat.title}
-                  className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-colors"
-                >
-                  <stat.icon size={20} className={`mb-2 ${
-                    stat.color === 'teal' ? 'text-teal-400' :
-                    stat.color === 'green' ? 'text-green-400' :
-                    stat.color === 'yellow' ? 'text-yellow-400' :
-                    'text-red-400'
-                  }`} />
-                  <p className="text-2xl font-bold text-white">{stat.value}</p>
-                  <p className="text-sm text-teal-200/60">{stat.title}</p>
+            {/* Stats Overview */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+              {/* Attendance Circle */}
+              <FloatingCard>
+                <h3 className="text-lg font-semibold text-white mb-4">Attendance Rate</h3>
+                <div className="flex justify-center">
+                  <div className="relative w-32 h-32">
+                    <svg className="transform -rotate-90 w-32 h-32">
+                      <circle
+                        cx="48"
+                        cy="48"
+                        r="42"
+                        fill="none"
+                        stroke={stats.attendancePercentage >= 90 ? '#22c55e' : stats.attendancePercentage >= 75 ? '#f59e0b' : '#ef4444'}
+                        strokeWidth="8"
+                        strokeLinecap="round"
+                        strokeDasharray={`${(stats.attendancePercentage / 100) * 264} 264`}
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-xl font-bold text-white">{stats.attendancePercentage}%</span>
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </div>
+              </FloatingCard>
 
-            {/* Attendance Bar */}
-            <FloatingCard>
-              <h3 className="font-semibold font-display mb-4 text-white flex items-center gap-2">
-                <TrendingUp size={18} className="text-teal-400" />
-                Attendance Status
-              </h3>
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <div className="h-4 bg-white/10 rounded-full overflow-hidden">
+              {/* Stats Grid */}
+              <FloatingCard className="lg:col-span-2">
+                <h3 className="text-lg font-semibold text-white mb-4">30-Day Summary</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { title: 'Total Days', value: stats.totalDays, icon: CalendarCheck, color: 'teal' },
+                    { title: 'Present', value: stats.daysPresent, icon: CalendarCheck, color: 'green' },
+                    { title: 'Late', value: stats.daysLate, icon: Clock, color: 'yellow' },
+                    { title: 'Absent', value: stats.daysAbsent, icon: CalendarX, color: 'red' },
+                  ].map((stat) => (
                     <div 
-                      className={`h-full transition-all duration-500 ${
-                        stats.attendancePercentage >= 90 
-                          ? 'bg-gradient-to-r from-green-500 to-emerald-400' 
-                          : stats.attendancePercentage >= 75 
-                            ? 'bg-gradient-to-r from-yellow-500 to-amber-400' 
-                            : 'bg-gradient-to-r from-red-500 to-rose-400'
-                      }`}
-                      style={{ width: `${stats.attendancePercentage}%` }}
-                    />
-                  </div>
-                </div>
-                <span className={`font-bold text-lg ${
-                  stats.attendancePercentage >= 90 
-                    ? 'text-green-400' 
-                    : stats.attendancePercentage >= 75 
-                      ? 'text-yellow-400' 
-                      : 'text-red-400'
-                }`}>
-                  {stats.attendancePercentage}%
-                </span>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500" />
-                  <span className="text-teal-100/70">≥90% Excellent</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                  <span className="text-teal-100/70">75-89% Needs Improvement</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-500" />
-                  <span className="text-teal-100/70">&lt;75% Critical</span>
-                </div>
-              </div>
-            </FloatingCard>
-
-            {/* Recent Records */}
-            <FloatingCard>
-              <h3 className="font-semibold font-display mb-4 text-white">Recent Attendance Records</h3>
-              {studentRecords.length > 0 ? (
-                <div className="divide-y divide-white/10">
-                  {studentRecords.map((record, index) => (
-                    <div key={index} className="py-4 flex items-center justify-between hover:bg-white/5 -mx-6 px-6 transition-colors">
-                      <div>
-                        <p className="font-medium text-white">
-                          {new Date(record.date).toLocaleDateString('en-US', {
-                            weekday: 'short',
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric'
-                          })}
-                        </p>
-                        <p className="text-sm text-teal-200/60">
-                          Time: {record.time || '-'}
-                        </p>
-                      </div>
-                      <StatusBadge status={record.status} size="small" />
+                      key={stat.title}
+                      className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-colors"
+                    >
+                      <stat.icon size={20} className={`mb-2 ${
+                        stat.color === 'teal' ? 'text-teal-400' :
+                        stat.color === 'green' ? 'text-green-400' :
+                        stat.color === 'yellow' ? 'text-yellow-400' :
+                        'text-red-400'
+                      }`} />
+                      <p className="text-2xl font-bold text-white">{stat.value}</p>
+                      <p className="text-xs text-teal-200/60">{stat.title}</p>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="py-8 text-center text-teal-200/60">
-                  No attendance records found
-                </div>
-              )}
+              </FloatingCard>
+            </div>
+
+            {/* Recent Attendance Records */}
+            <FloatingCard>
+              <h3 className="text-lg font-semibold text-white mb-4">Recent Attendance</h3>
+              <div className="space-y-3">
+                {studentRecords.length > 0 ? (
+                  studentRecords.map((record) => (
+                    <div key={record.date} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                      <div>
+                        <p className="text-white font-medium">{record.studentName}</p>
+                        <p className="text-teal-200/70 text-sm">{record.date}</p>
+                      </div>
+                      <StatusBadge status={record.status} />
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-teal-200/70 text-center py-8">No attendance records found</p>
+                )}
+              </div>
             </FloatingCard>
-          </div>
+          </>
         )}
 
-        {/* Empty State */}
+        {/* No Search Results */}
         {!searchedStudent && !error && (
-          <div className="text-center py-12">
-            <User size={48} className="mx-auto mb-4 text-teal-500/30" />
-            <p className="text-teal-200/60">Enter your Student ID above to view your attendance dashboard</p>
-          </div>
+          <FloatingCard>
+            <div className="text-center py-12">
+              <User size={48} className="mx-auto mb-4 text-teal-400" />
+              <h3 className="text-xl font-semibold text-white mb-2">No Student Selected</h3>
+              <p className="text-teal-200/70">Enter a Student ID above to view their attendance statistics</p>
+            </div>
+          </FloatingCard>
         )}
       </main>
 
