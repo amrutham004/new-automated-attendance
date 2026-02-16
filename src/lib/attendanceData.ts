@@ -294,9 +294,9 @@ const generateMockHistory = (): AttendanceRecord[] => {
   return records;
 };
 
-// Get dashboard statistics
+// Get dashboard statistics (using real data, not random mock data)
 export const getDashboardStats = (): DashboardStats => {
-  const records = generateMockHistory();
+  const records = getAttendanceRecords(); // Use real attendance records, not mock
   const today = new Date().toISOString().split('T')[0];
   const todayRecords = records.filter(r => r.date === today);
   
@@ -310,12 +310,12 @@ export const getDashboardStats = (): DashboardStats => {
   };
 };
 
-// Get student statistics
+// Get student statistics (using real data, not random mock data)
 export const getStudentStats = (studentId: string): StudentStats | null => {
   const student = getStudentById(studentId);
   if (!student) return null;
   
-  const records = generateMockHistory();
+  const records = getAttendanceRecords(); // Use real attendance records, not mock
   const studentRecords = records.filter(r => r.studentId === studentId);
   
   const totalDays = studentRecords.length;
@@ -510,23 +510,30 @@ export const saveStudentPhoto = (studentId: string, imageData: string): void => 
 // EXPORT FUNCTIONS
 // ========================================
 
-// Get records for export
+// Get records for export (using real data, not random mock data)
 export const getRecordsForExport = (
   filter: 'daily' | 'weekly' | 'monthly' = 'daily'
 ): AttendanceRecord[] => {
-  const records = generateMockHistory();
+  const records = getAttendanceRecords(); // Use real attendance records, not mock
   const today = new Date();
   
   let startDate: Date;
-  if (filter === 'daily') {
-    startDate = new Date(today);
-    startDate.setDate(startDate.getDate() - 1);
-  } else if (filter === 'weekly') {
-    startDate = new Date(today);
-    startDate.setDate(startDate.getDate() - 7);
-  } else {
-    startDate = new Date(today);
-    startDate.setMonth(startDate.getMonth() - 1);
+  switch (filter) {
+    case 'daily':
+      startDate = new Date(today);
+      startDate.setDate(today.getDate() - 1);
+      break;
+    case 'weekly':
+      startDate = new Date(today);
+      startDate.setDate(today.getDate() - 7);
+      break;
+    case 'monthly':
+      startDate = new Date(today);
+      startDate.setMonth(today.getMonth() - 1);
+      break;
+    default:
+      startDate = new Date(today);
+      startDate.setDate(today.getDate() - 1);
   }
   
   return records.filter(r => new Date(r.date) >= startDate);
@@ -556,9 +563,9 @@ export const exportToCSV = (records: AttendanceRecord[]): void => {
   window.URL.revokeObjectURL(url);
 };
 
-// Get weekly summary for charts
+// Get weekly summary for charts (using real data, not random mock data)
 export const getWeeklySummary = () => {
-  const records = generateMockHistory();
+  const records = getAttendanceRecords(); // Use real attendance records, not mock
   const today = new Date();
   const weekData = [];
   
