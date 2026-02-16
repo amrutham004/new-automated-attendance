@@ -304,9 +304,7 @@ export const getDashboardStats = (): DashboardStats => {
     totalStudents: students.length,
     presentToday: todayRecords.filter(r => r.status === 'PRESENT').length,
     lateToday: todayRecords.filter(r => r.status === 'LATE_PRESENT').length,
-    absentToday: todayRecords.filter(r => r.status === 'ABSENT').length,
-    weeklyAverage: 85.5,
-    monthlyTrend: 2.3
+    absentToday: todayRecords.filter(r => r.status === 'ABSENT').length
   };
 };
 

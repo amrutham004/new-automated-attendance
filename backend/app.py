@@ -253,6 +253,20 @@ def init_db():
         )
     ''')
     
+    # Attendance sessions table for dual verification
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS attendance_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT NOT NULL,
+            session_token TEXT NOT NULL,
+            qr_verified INTEGER DEFAULT 0,
+            face_verified INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NOT NULL,
+            UNIQUE(student_id, session_token)
+        )
+    ''')
+    
     conn.commit()
     conn.close()
     print("✅ Database tables initialized")
@@ -848,10 +862,93 @@ async def upload_student_photo(student: StudentPhotoUpload):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/validate-attendance-token")
+@limiter.limit(get_rate_limit("token_validate"))
+async def validate_attendance_token(request: Request, data: dict):
+    """Validate attendance QR token and create session"""
+    try:
+        # Extract token from request
+        if 'token' not in data:
+            raise HTTPException(status_code=400, detail="Token is required")
+        
+        token = data['token'].strip()
+        
+        # Validate token format and extract student ID
+        if not token or len(token) < 10:
+            log_security_event("INVALID_TOKEN", {"token": token[:20] + "..."})
+            raise HTTPException(status_code=400, detail="Invalid token format")
+        
+        # Extract student ID from token (simple implementation)
+        # In production, this would use proper JWT decryption
+        student_id = token[:15] if len(token) >= 15 else token
+        
+        # Validate student ID format
+        if not validate_student_id(student_id):
+            log_security_event("INVALID_STUDENT_ID", {"student_id": student_id})
+            raise HTTPException(status_code=400, detail="Invalid student ID in token")
+        
+        # Check if student exists
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT name FROM students WHERE student_id = ?', (student_id,))
+        student = cursor.fetchone()
+        conn.close()
+        
+        if not student:
+            log_security_event("STUDENT_NOT_FOUND", {"student_id": student_id})
+            raise HTTPException(status_code=404, detail="Student not found")
+        
+        # Clean up expired sessions
+        cleanup_expired_sessions()
+        
+        # Create or replace session
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Delete any existing session for this student
+        cursor.execute('DELETE FROM attendance_sessions WHERE student_id = ?', (student_id,))
+        
+        # Insert new session with QR verified
+        expires_at = datetime.now() + timedelta(seconds=60)
+        cursor.execute('''
+            INSERT INTO attendance_sessions 
+            (student_id, session_token, qr_verified, face_verified, created_at, expires_at)
+            VALUES (?, ?, 1, 0, CURRENT_TIMESTAMP, ?)
+        ''', (student_id, token, expires_at))
+        
+        conn.commit()
+        conn.close()
+        
+        log_event("QR_VERIFIED", f"QR token validated for student {student_id}", student_id=student_id)
+        
+        return {
+            "success": True,
+            "message": "QR verified. Proceed to face verification.",
+            "studentId": student_id,
+            "studentName": student[0]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_event("TOKEN_VALIDATION_ERROR", f"Error validating token: {str(e)}", level="ERROR")
+        raise HTTPException(status_code=500, detail=str(e))
+
+def cleanup_expired_sessions():
+    """Clean up expired attendance sessions"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM attendance_sessions WHERE expires_at < CURRENT_TIMESTAMP')
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        log_event("SESSION_CLEANUP_ERROR", f"Error cleaning sessions: {str(e)}", level="ERROR")
+
 @app.post("/api/verify-face")
 @limiter.limit(get_rate_limit("face_verify"))
 async def verify_face(request: Request, data: FaceVerificationRequest, current_user: Dict = Depends(get_current_user)):
-    """Verify face for attendance (authenticated users only)"""
+    """Verify face for attendance (second step of dual verification)"""
     try:
         # Validate input
         if not validate_student_id(data.studentId):
@@ -866,6 +963,23 @@ async def verify_face(request: Request, data: FaceVerificationRequest, current_u
             log_security_event("INVALID_IMAGE", {"student_id": data.studentId})
             raise HTTPException(status_code=400, detail="Invalid image data")
         
+        # Check for valid QR session first
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM attendance_sessions 
+            WHERE student_id = ? AND qr_verified = 1 AND face_verified = 0 
+            AND expires_at > CURRENT_TIMESTAMP
+        ''', (data.studentId,))
+        
+        session = cursor.fetchone()
+        conn.close()
+        
+        if not session:
+            log_security_event("FACE_WITHOUT_QR", {"student_id": data.studentId})
+            raise HTTPException(status_code=400, detail="QR verification required before face scan.")
+        
+        # Perform face verification
         image_data = data.image.encode('utf-8') if isinstance(data.image, str) else data.image
         result = recognize_face_from_image(image_data, data.studentId)
         
@@ -887,40 +1001,45 @@ async def verify_face(request: Request, data: FaceVerificationRequest, current_u
                 "confidenceScore": 0
             }
         
-        # Check for duplicate attendance
+        # Face verification succeeded - update session and mark attendance
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Update session to mark face as verified
         cursor.execute('''
-            SELECT * FROM attendance 
-            WHERE student_id = ? AND date = ? AND method = 'face'
-        ''', (result["student_id"], date.today().isoformat()))
-        existing = cursor.fetchone()
+            UPDATE attendance_sessions 
+            SET face_verified = 1 
+            WHERE student_id = ? AND session_token = ?
+        ''', (data.studentId, session['session_token']))
+        
+        # Get student name for attendance record
+        cursor.execute('SELECT name FROM students WHERE student_id = ?', (data.studentId,))
+        student = cursor.fetchone()
+        
+        # Insert attendance record (both verifications complete)
+        cursor.execute('''
+            INSERT INTO attendance 
+            (student_id, student_name, date, check_in_time, method, confidence_score)
+            VALUES (?, ?, CURRENT_DATE, CURRENT_TIME, 'qr_face', ?)
+        ''', (data.studentId, student[0], result["confidence"]))
+        
+        conn.commit()
         conn.close()
         
-        if existing:
-            log_security_event("DUPLICATE_ATTENDANCE", 
-                             f"Duplicate face verification attempt for {result['student_id']}",
-                             student_id=result["student_id"],
-                             level="WARNING")
-            
-            return {
-                "success": False,
-                "verified": False,
-                "message": "Attendance already marked for today",
-                "confidenceScore": result.get("confidence", 0)
-            }
-            
-            return {
-                "success": True,
-                "verified": True,
-                "message": f"Attendance already marked for {result['student_name']} today.",
-                "confidenceScore": result["confidence"],
-                "studentId": result["student_id"],
-                "studentName": result["student_name"],
-                "alreadyMarked": True,
-                "mock_mode": not FACE_RECOGNITION_AVAILABLE
-            }
+        log_event("ATTENDANCE_MARKED", f"Attendance marked for {data.studentId} (QR + Face verified)", student_id=data.studentId)
         
+        return {
+            "success": True,
+            "verified": True,
+            "message": f"Attendance marked for {data.studentId}",
+            "confidenceScore": result["confidence"],
+            "studentId": data.studentId,
+            "studentName": student[0],
+            "method": "qr_face"
+        }
+        
+    except HTTPException:
+        raise
     except Exception as e:
         log_event("FACE_VERIFICATION_ERROR", f"Error in face verification: {str(e)}", student_id=data.studentId, level="ERROR")
         raise HTTPException(status_code=500, detail=str(e))
