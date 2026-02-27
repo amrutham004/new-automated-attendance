@@ -1,252 +1,222 @@
-/**
- * AdminDashboard.tsx - Admin Dashboard Page (3D Design)
- * 
- * Provides administrators with:
- * - Overview statistics with 3D styled cards
- * - Weekly attendance chart
- * - Export functionality
- * - Today's attendance table
- */
-
 import { useState, useEffect } from 'react';
 import Header from '@/components/attendance/Header';
 import Footer from '@/components/attendance/Footer';
 import Scene3D from '@/components/3d/Scene3D';
 import FloatingCard from '@/components/3d/FloatingCard';
-import GlassButton from '@/components/3d/GlassButton';
-import StatusBadge from '@/components/attendance/StatusBadge';
-import TeacherScanCard from '@/components/attendance/TeacherScanCard';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   getDashboardStats, 
-  getRecordsForExport, 
-  exportToCSV, 
-  getWeeklySummary,
-  students,
-  getTodayAttendanceStatus,
-  addSampleTodayAttendance
+  getAttendanceRecords,
+  getRecordsForExport,
+  exportToCSV
 } from '@/lib/attendanceData';
 import { AttendanceRecord } from '@/types/attendance';
-import { Users, UserCheck, Clock, UserX, Download, Calendar } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
+import { Calendar, CheckCircle, Clock, XCircle, Download } from 'lucide-react';
+import GlassButton from '@/components/3d/GlassButton';
 
 const AdminDashboard = () => {
-  const [exportFilter, setExportFilter] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [stats, setStats] = useState({ totalStudents: 0, presentToday: 0, lateToday: 0, absentToday: 0 });
-  const [weeklyData, setWeeklyData] = useState<{date: string; present: number; late: number; absent: number}[]>([]);
-  const [todayRecords, setTodayRecords] = useState<AttendanceRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [recentRecords, setRecentRecords] = useState<AttendanceRecord[]>([]);
+  const [attendanceRate, setAttendanceRate] = useState(0);
+  const [exportFilter, setExportFilter] = useState<'daily' | 'weekly'>('daily');
 
   useEffect(() => {
-    const loadData = () => {
-      try {
-        // Add sample today's attendance data for demonstration
-        addSampleTodayAttendance();
-        
-        const statsData = getDashboardStats();
-        const weeklyDataResult = getWeeklySummary();
-        const todayRecordsResult = getTodayAttendanceStatus(); // Use new function
-        
-        setStats(statsData);
-        setWeeklyData(weeklyDataResult);
-        setTodayRecords(todayRecordsResult);
-      } catch (error) {
-        console.error('Error loading dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    const statsData = getDashboardStats();
+    setStats(statsData);
 
-    loadData();
+    const records = getAttendanceRecords();
+    const sorted = records.sort((a, b) => new Date(b.date + ' ' + b.time).getTime() - new Date(a.date + ' ' + a.time).getTime());
+    setRecentRecords(sorted.slice(0, 10));
+
+    // Calculate attendance rate
+    const totalDays = records.length;
+    const presentDays = records.filter(r => r.status === 'PRESENT').length;
+    const rate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+    setAttendanceRate(rate);
   }, []);
 
   const handleExport = () => {
     const records = getRecordsForExport(exportFilter);
-    console.log(`Exporting ${records.length} records for ${exportFilter}`);
     exportToCSV(records);
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-teal-800 to-emerald-900 text-white flex items-center justify-center">
-        <div className="text-2xl">Loading dashboard...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-teal-800 to-emerald-900 text-white overflow-hidden">
       <Scene3D />
       <Header />
 
-      <main className="container relative z-10 py-8">
-        {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold font-display bg-gradient-to-r from-green-300 via-teal-300 to-blue-300 bg-clip-text text-transparent mb-2">
-            Admin Dashboard
-          </h1>
-          <p className="text-teal-100/70">
-            Overview for {new Date().toLocaleDateString('en-US', { 
-              weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
-            })}
-          </p>
-        </div>
+      <main className="container relative z-10 py-8 max-w-6xl mx-auto px-4">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {/* Attendance Rate Card */}
+          <FloatingCard className="flex flex-col items-center justify-center p-6">
+            <h3 className="text-sm font-medium text-white mb-4">Attendance Rate</h3>
+            <div className="relative w-32 h-32">
+              <svg className="w-32 h-32 transform -rotate-90">
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="56"
+                  fill="none"
+                  stroke="rgba(255, 255, 255, 0.1)"
+                  strokeWidth="10"
+                />
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="56"
+                  fill="none"
+                  stroke={attendanceRate >= 90 ? '#22c55e' : attendanceRate >= 75 ? '#f59e0b' : '#ef4444'}
+                  strokeWidth="10"
+                  strokeLinecap="round"
+                  strokeDasharray={`${(attendanceRate / 100) * 352} 352`}
+                  className="transition-all duration-500"
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-2xl font-bold text-white">{attendanceRate}%</span>
+                <span className="text-xs text-teal-200/70">Overall</span>
+              </div>
+            </div>
+            <p className={`mt-3 text-xs font-medium ${
+              attendanceRate >= 90 ? 'text-green-400' :
+              attendanceRate >= 75 ? 'text-yellow-400' :
+              'text-red-400'
+            }`}>
+              {attendanceRate >= 90 ? 'Excellent' :
+               attendanceRate >= 75 ? 'Good' :
+               'Needs Improvement'}
+            </p>
+          </FloatingCard>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <FloatingCard glowColor="rgba(34, 197, 94, 0.3)">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-teal-200/70 text-sm">Total Students</p>
-                <p className="text-3xl font-bold text-white">{stats.totalStudents}</p>
+          {/* Total Days */}
+          <FloatingCard className="p-6">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-full bg-teal-500/20 flex items-center justify-center mb-3">
+                <Calendar size={24} className="text-teal-400" />
               </div>
-              <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
-                <Users size={24} className="text-green-400" />
-              </div>
+              <p className="text-3xl font-bold text-white mb-1">{stats.totalStudents}</p>
+              <p className="text-sm text-teal-200">Total Days</p>
+              <p className="text-xs text-teal-200/60 mt-1">School days tracked</p>
             </div>
           </FloatingCard>
 
-          <FloatingCard glowColor="rgba(34, 197, 94, 0.3)">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-teal-200/70 text-sm">Present Today</p>
-                <p className="text-3xl font-bold text-green-400">{stats.presentToday}</p>
+          {/* Present */}
+          <FloatingCard className="p-6">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center mb-3">
+                <CheckCircle size={24} className="text-green-400" />
               </div>
-              <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
-                <UserCheck size={24} className="text-green-400" />
-              </div>
+              <p className="text-3xl font-bold text-white mb-1">{stats.presentToday}</p>
+              <p className="text-sm text-teal-200">Present</p>
+              <p className="text-xs text-teal-200/60 mt-1">On-time attendance</p>
             </div>
           </FloatingCard>
 
-          <FloatingCard glowColor="rgba(245, 158, 11, 0.3)">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-teal-200/70 text-sm">Late Today</p>
-                <p className="text-3xl font-bold text-yellow-400">{stats.lateToday}</p>
-              </div>
-              <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center">
+          {/* Late */}
+          <FloatingCard className="p-6">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center mb-3">
                 <Clock size={24} className="text-yellow-400" />
               </div>
+              <p className="text-3xl font-bold text-white mb-1">{stats.lateToday}</p>
+              <p className="text-sm text-teal-200">Late</p>
+              <p className="text-xs text-teal-200/60 mt-1">Late arrivals</p>
             </div>
           </FloatingCard>
 
-          <FloatingCard glowColor="rgba(239, 68, 68, 0.3)">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-teal-200/70 text-sm">Absent Today</p>
-                <p className="text-3xl font-bold text-red-400">{stats.absentToday}</p>
+          {/* Absent */}
+          <FloatingCard className="p-6 md:col-start-2 lg:col-start-1">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mb-3">
+                <XCircle size={24} className="text-red-400" />
               </div>
-              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
-                <UserX size={24} className="text-red-400" />
-              </div>
+              <p className="text-3xl font-bold text-white mb-1">{stats.absentToday}</p>
+              <p className="text-sm text-teal-200">Absent</p>
+              <p className="text-xs text-teal-200/60 mt-1">Missed classes</p>
             </div>
           </FloatingCard>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Weekly Attendance Chart */}
-          <FloatingCard>
-            <h2 className="text-lg font-semibold font-display mb-4 text-white">Weekly Attendance</h2>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={weeklyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                <XAxis dataKey="date" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(15, 23, 42, 0.9)', 
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    borderRadius: '8px'
-                  }} 
-                />
-                <Legend />
-                <Bar dataKey="present" fill="#22c55e" name="Present" />
-                <Bar dataKey="late" fill="#f59e0b" name="Late" />
-                <Bar dataKey="absent" fill="#ef4444" name="Absent" />
-              </BarChart>
-            </ResponsiveContainer>
-          </FloatingCard>
-
-          {/* Export Section */}
-          <div className="space-y-4">
-            <FloatingCard>
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold font-display text-white">Export Data</h2>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => setExportFilter('daily')}
-                    variant={exportFilter === 'daily' ? 'default' : 'outline'}
-                    className="bg-white/10 hover:bg-white/20 text-white border-white/20"
-                  >
-                    <Download size={16} className="mr-2" />
-                    Daily
-                  </Button>
-                  <Button
-                    onClick={() => setExportFilter('weekly')}
-                    variant={exportFilter === 'weekly' ? 'default' : 'outline'}
-                    className="bg-white/10 hover:bg-white/20 text-white border-white/20"
-                  >
-                    <Download size={16} className="mr-2" />
-                    Weekly
-                  </Button>
-                  <Button
-                    onClick={() => setExportFilter('monthly')}
-                    variant={exportFilter === 'monthly' ? 'default' : 'outline'}
-                    className="bg-white/10 hover:bg-white/20 text-white border-white/20"
-                  >
-                    <Download size={16} className="mr-2" />
-                    Monthly
-                  </Button>
-                </div>
-              </div>
-              <p className="text-teal-200/70 text-sm mb-4">
-                Export attendance data for selected time period
-              </p>
-              <Button onClick={handleExport} className="w-full bg-gradient-to-r from-green-500 to-teal-500 hover:from-green-600 hover:to-teal-600 text-white font-semibold">
-                <Download size={16} className="mr-2" />
-                Download {exportFilter.charAt(0).toUpperCase() + exportFilter.slice(1)} Report
-              </Button>
-            </FloatingCard>
+        {/* Recent Attendance */}
+        <FloatingCard className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-white">Recent Attendance</h3>
+            <span className="text-xs text-teal-200/60">Last 10 records</span>
           </div>
-
-          {/* Today's Attendance Table */}
-          <FloatingCard>
-            <h2 className="text-lg font-semibold font-display mb-4 text-white">Today's Attendance</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="text-left p-3 text-teal-200 font-medium">Student ID</th>
-                    <th className="text-left p-3 text-teal-200 font-medium">Name</th>
-                    <th className="text-left p-3 text-teal-200 font-medium">Time</th>
-                    <th className="text-left p-3 text-teal-200 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {todayRecords.length > 0 ? (
-                    todayRecords.slice(0, 3).map((record, index) => (
-                      <tr key={index} className="border-b border-white/5 hover:bg-white/5">
-                        <td className="p-3 text-white font-medium">{record.studentId}</td>
-                        <td className="p-3 text-white">{record.studentName}</td>
-                        <td className="p-3 text-teal-200">{record.time || '-'}</td>
-                        <td className="p-3">
-                          <StatusBadge status={record.status} />
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="p-8 text-center text-teal-200/70">
-                        No attendance records for today
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+          {recentRecords.length > 0 ? (
+            <div className="space-y-2">
+              {recentRecords.map((record, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-teal-900/20 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      record.status === 'PRESENT' ? 'bg-green-500/20' :
+                      record.status === 'LATE_PRESENT' ? 'bg-yellow-500/20' :
+                      'bg-red-500/20'
+                    }`}>
+                      {record.status === 'PRESENT' && <CheckCircle size={18} className="text-green-400" />}
+                      {record.status === 'LATE_PRESENT' && <Clock size={18} className="text-yellow-400" />}
+                      {record.status === 'ABSENT' && <XCircle size={18} className="text-red-400" />}
+                    </div>
+                    <div>
+                      <p className="text-white text-sm font-medium">{record.studentName}</p>
+                      <p className="text-teal-200/60 text-xs">{record.date} at {record.time}</p>
+                    </div>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    record.status === 'PRESENT' ? 'bg-green-500/20 text-green-400' :
+                    record.status === 'LATE_PRESENT' ? 'bg-yellow-500/20 text-yellow-400' :
+                    'bg-red-500/20 text-red-400'
+                  }`}>
+                    {record.status === 'PRESENT' ? 'Present' :
+                     record.status === 'LATE_PRESENT' ? 'Late' : 'Absent'}
+                  </span>
+                </div>
+              ))}
             </div>
-          </FloatingCard>
-        </div>
+          ) : (
+            <div className="text-center py-12">
+              <Calendar size={48} className="mx-auto mb-3 text-teal-400/30" />
+              <p className="text-teal-200/70">No attendance records found</p>
+              <p className="text-teal-200/50 text-sm mt-1">Attendance data will appear here once recorded</p>
+            </div>
+          )}
+        </FloatingCard>
+
+        {/* Export Section */}
+        <FloatingCard className="p-6 mt-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Export Attendance Data</h3>
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setExportFilter('daily')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  exportFilter === 'daily'
+                    ? 'bg-teal-500 text-white'
+                    : 'bg-teal-900/30 text-teal-200 hover:bg-teal-900/50'
+                }`}
+              >
+                Daily
+              </button>
+              <button
+                onClick={() => setExportFilter('weekly')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  exportFilter === 'weekly'
+                    ? 'bg-teal-500 text-white'
+                    : 'bg-teal-900/30 text-teal-200 hover:bg-teal-900/50'
+                }`}
+              >
+                Weekly
+              </button>
+            </div>
+            <GlassButton onClick={handleExport} className="px-6 py-2">
+              <Download size={18} className="mr-2" />
+              Download {exportFilter === 'daily' ? 'Daily' : 'Weekly'} Report
+            </GlassButton>
+          </div>
+          <p className="text-teal-200/60 text-sm mt-3">
+            Export attendance records as CSV file for {exportFilter === 'daily' ? 'today' : 'the past 7 days'}
+          </p>
+        </FloatingCard>
       </main>
 
       <Footer />

@@ -18,13 +18,15 @@ interface FaceRecognitionCaptureProps {
   studentName: string;
   onSuccess: () => void;
   onCancel: () => void;
+  onError?: (errorMessage: string) => void;
 }
 
 const FaceRecognitionCapture = ({ 
   studentId, 
   studentName, 
   onSuccess, 
-  onCancel 
+  onCancel,
+  onError
 }: FaceRecognitionCaptureProps) => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -112,10 +114,16 @@ const FaceRecognitionCapture = ({
       }, 1500);
     } else {
       setVerificationResult('failed');
+      // Call onError if provided
+      if (onError) {
+        setTimeout(() => {
+          onError('Face verification failed. No matching face photo found for your student ID.');
+        }, 1500);
+      }
     }
     
     setIsVerifying(false);
-  }, [capturedImage, onSuccess]);
+  }, [capturedImage, onSuccess, onError]);
 
   useEffect(() => {
     startCamera();

@@ -68,6 +68,10 @@ const STUDENT_PHOTOS_KEY = 'student_photos';
 const FACE_CAPTURES_KEY = 'face_captures';
 const ATTENDANCE_TOKENS_KEY = 'attendance_tokens';
 
+// Data retention period (30 days in milliseconds)
+const DATA_RETENTION_DAYS = 30;
+const DATA_RETENTION_MS = DATA_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
 // ========================================
 // ATTENDANCE TOKEN TYPES
 // ========================================
@@ -168,11 +172,35 @@ export const validateStudentQR = (qrData: string): {
 // ATTENDANCE RECORD MANAGEMENT
 // ========================================
 
+// Clean up old attendance records (older than 30 days)
+const cleanupOldRecords = (records: AttendanceRecord[]): AttendanceRecord[] => {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - DATA_RETENTION_DAYS);
+  const cutoffDateString = cutoffDate.toISOString().split('T')[0];
+  
+  const filteredRecords = records.filter(record => record.date >= cutoffDateString);
+  
+  if (filteredRecords.length < records.length) {
+    console.log(`Cleaned up ${records.length - filteredRecords.length} old attendance records (older than ${DATA_RETENTION_DAYS} days)`);
+  }
+  
+  return filteredRecords;
+};
+
 // Get attendance records from localStorage
 export const getAttendanceRecords = (): AttendanceRecord[] => {
   try {
     const stored = localStorage.getItem(ATTENDANCE_KEY);
-    return stored ? JSON.parse(stored) : [];
+    const records = stored ? JSON.parse(stored) : [];
+    // Clean up old records on every read
+    const cleanedRecords = cleanupOldRecords(records);
+    
+    // Save cleaned records back if any were removed
+    if (cleanedRecords.length < records.length) {
+      saveAttendanceRecords(cleanedRecords);
+    }
+    
+    return cleanedRecords;
   } catch {
     return [];
   }
@@ -181,7 +209,10 @@ export const getAttendanceRecords = (): AttendanceRecord[] => {
 // Save attendance records to localStorage
 export const saveAttendanceRecords = (records: AttendanceRecord[]): void => {
   try {
-    localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(records));
+    // Always clean before saving to ensure we never store old data
+    const cleanedRecords = cleanupOldRecords(records);
+    localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(cleanedRecords));
+    console.log(`Saved ${cleanedRecords.length} attendance records (retention: ${DATA_RETENTION_DAYS} days)`);
   } catch (error) {
     console.error('Failed to save attendance records:', error);
   }
@@ -257,54 +288,21 @@ export const markAttendanceFromScan = (
 // STATISTICS FUNCTIONS
 // ========================================
 
-// Generate mock historical data for demonstration
-const generateMockHistory = (): AttendanceRecord[] => {
-  const records: AttendanceRecord[] = [];
-  const today = new Date();
-  const statuses: AttendanceStatus[] = ['PRESENT', 'LATE_PRESENT', 'ABSENT'];
-  const weights = [0.7, 0.2, 0.1]; // 70% present, 20% late, 10% absent
-  
-  for (let i = 29; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    
-    // Skip weekends
-    if (date.getDay() === 0 || date.getDay() === 6) continue;
-    
-    students.forEach(student => {
-      const rand = Math.random();
-      let status: AttendanceStatus;
-      
-      if (rand < weights[0]) status = 'PRESENT';
-      else if (rand < weights[0] + weights[1]) status = 'LATE_PRESENT';
-      else status = 'ABSENT';
-      
-      records.push({
-        studentId: student.id,
-        studentName: student.name,
-        date: date.toISOString().split('T')[0],
-        time: status === 'ABSENT' ? '-' : `${8 + Math.floor(Math.random() * 3)}:${Math.random() < 0.5 ? '00' : '30'}`,
-        status: status,
-        method: status === 'ABSENT' ? 'manual' : 'qr_scan',
-        verified: status !== 'ABSENT'
-      });
-    });
-  }
-  
-  return records;
-};
-
-// Get dashboard statistics (using real data, not random mock data)
+// Get dashboard statistics (using real data only)
 export const getDashboardStats = (): DashboardStats => {
   const records = getAttendanceRecords(); // Use real attendance records, not mock
   const today = new Date().toISOString().split('T')[0];
   const todayRecords = records.filter(r => r.date === today);
   
+  // Count all 3 students with their actual status
+  const presentCount = todayRecords.filter(r => r.status === 'PRESENT').length;
+  const lateCount = todayRecords.filter(r => r.status === 'LATE_PRESENT').length;
+  
   return {
-    totalStudents: students.length,
-    presentToday: todayRecords.filter(r => r.status === 'PRESENT').length,
-    lateToday: todayRecords.filter(r => r.status === 'LATE_PRESENT').length,
-    absentToday: todayRecords.filter(r => r.status === 'ABSENT').length
+    totalStudents: students.length, // All 3 students
+    presentToday: presentCount,
+    lateToday: lateCount,
+    absentToday: students.length - presentCount - lateCount // Students not present/late today
   };
 };
 
@@ -347,14 +345,17 @@ export const generateAttendanceToken = (studentId: string): string => {
     token,
     studentId,
     studentName: student.name,
-    expiryTimestamp: timestamp + (24 * 60 * 60 * 1000), // 24 hours
+    expiryTimestamp: timestamp + (QR_VALIDITY_SECONDS * 1000), // 60 seconds to match QR validity
     isUsed: false,
     createdAt: timestamp
   };
   
   const tokens = getAttendanceTokens();
-  tokens.push(attendanceToken);
-  saveAttendanceTokens(tokens);
+  
+  // Clean up old tokens for this student before adding new one
+  const cleanedTokens = tokens.filter(t => t.studentId !== studentId || t.isUsed);
+  cleanedTokens.push(attendanceToken);
+  saveAttendanceTokens(cleanedTokens);
   
   return token;
 };
@@ -384,6 +385,7 @@ export const validateAttendanceToken = (token: string): {
   studentId?: string;
   studentName?: string;
   error?: string;
+  expired?: boolean;
 } => {
   try {
     const tokens = getAttendanceTokens();
@@ -398,7 +400,7 @@ export const validateAttendanceToken = (token: string): {
     }
     
     if (Date.now() > attendanceToken.expiryTimestamp) {
-      return { valid: false, error: 'Token expired' };
+      return { valid: false, error: 'Token expired', expired: true };
     }
     
     return {
@@ -624,13 +626,13 @@ export const verifyFaceWithBackend = async (
   }
 };
 
-// Get today's attendance status for specific students (only the 3 required students)
+// Get today's attendance status (all 3 students with real status)
 export const getTodayAttendanceStatus = (): AttendanceRecord[] => {
   const today = new Date().toISOString().split('T')[0];
   const records = getAttendanceRecords();
   const todayRecords = records.filter(r => r.date === today);
   
-  // Get only the 3 required students
+  // Get all 3 required students
   const requiredStudents = [
     { id: '20221CIT0043', name: 'Amrutha M' },
     { id: '20221CIT0049', name: 'C M Shalini' },
@@ -645,7 +647,7 @@ export const getTodayAttendanceStatus = (): AttendanceRecord[] => {
       // Use the actual attendance record if it exists
       studentStatuses.push(attendanceRecord);
     } else {
-      // Only mark as absent if no actual record exists for today
+      // Mark as absent if no actual record exists for today
       studentStatuses.push({
         studentId: student.id,
         studentName: student.name,
@@ -661,50 +663,17 @@ export const getTodayAttendanceStatus = (): AttendanceRecord[] => {
   return studentStatuses;
 };
 
-// Add sample attendance for today (for demonstration - in real app this comes from actual check-ins)
-export const addSampleTodayAttendance = (): void => {
-  const today = new Date().toISOString().split('T')[0];
-  const records = getAttendanceRecords();
-  
-  // Check if we already have today's records
-  const existingTodayRecords = records.filter(r => r.date === today);
-  if (existingTodayRecords.length === 0) {
-    // Add sample records for the 3 required students only
-    const sampleRecords: AttendanceRecord[] = [
-      {
-        studentId: '20221CIT0043',
-        studentName: 'Amrutha M',
-        date: today,
-        time: '09:15',
-        status: 'PRESENT',
-        method: 'qr_scan',
-        verified: true
-      },
-      {
-        studentId: '20221CIT0151',
-        studentName: 'Vismaya L',
-        date: today,
-        time: '09:30',
-        status: 'PRESENT',
-        method: 'qr_scan',
-        verified: true
-      }
-      // Note: C M Shalini (20221CIT0049) will show as ABSENT since no record exists
-    ];
-    
-    // Save the sample records
-    const updatedRecords = [...records, ...sampleRecords];
-    saveAttendanceRecords(updatedRecords);
-  }
-};
+// Removed: addSampleTodayAttendance() - No mock data generation
+// All attendance data now comes from real student check-ins only
 
 // ========================================
 // URL GENERATION
 // ========================================
 
 export const generateAttendanceURL = (studentId: string): string => {
-  const token = generateAttendanceToken(studentId);
-  if (!token) return '';
+  // Generate QR code data with embedded validation
+  const qrData = generateAttendanceQR(studentId);
+  if (!qrData) return '';
   
   // Smart network detection - automatically adapts to current access method
   const currentHostname = window.location.hostname;
@@ -734,5 +703,6 @@ export const generateAttendanceURL = (studentId: string): string => {
     console.log('Using default URL:', baseUrl);
   }
   
-  return `${baseUrl}/attendance?token=${encodeURIComponent(token)}`;
+  // Encode QR data directly in URL instead of using localStorage tokens
+  return `${baseUrl}/verify-attendance?qr=${encodeURIComponent(qrData)}`;
 };

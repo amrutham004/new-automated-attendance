@@ -15,7 +15,7 @@ import Header from '@/components/attendance/Header';
 import Footer from '@/components/attendance/Footer';
 import Scene3D from '@/components/3d/Scene3D';
 import FloatingCard from '@/components/3d/FloatingCard';
-import { validateAttendanceToken, markAttendanceFromScan } from '@/lib/attendanceData';
+import { validateStudentQR, markAttendanceFromScan } from '@/lib/attendanceData';
 import { CheckCircle, XCircle, Clock, AlertCircle, Camera, Loader2 } from 'lucide-react';
 
 type Step = 'validating' | 'success' | 'error';
@@ -23,7 +23,7 @@ type Step = 'validating' | 'success' | 'error';
 const VerifyAttendance = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const token = searchParams.get('token');
+  const qrData = searchParams.get('qr');
   
   const [step, setStep] = useState<Step>('validating');
   const [message, setMessage] = useState('');
@@ -33,29 +33,41 @@ const VerifyAttendance = () => {
   const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
-    if (!token) {
-      setMessage('No attendance token found. Please scan a valid QR code.');
+    if (!qrData) {
+      setStep('error');
+      setMessage('No QR code data found. Please scan a valid QR code.');
       setErrorType('invalid');
       return;
     }
 
-    // Process the token - call the function directly, not as a hook
-    const result = validateAttendanceToken(token);
+    // Validate QR code data directly
+    const result = validateStudentQR(qrData);
     
-    if (result.valid) {
+    if (result.valid && result.studentId) {
       // Mark attendance using the regular function
-      const markResult = markAttendanceFromScan(result.studentId!);
+      const markResult = markAttendanceFromScan(result.studentId);
       
       if (markResult.success) {
         setStep('success');
         setMessage(markResult.message);
         setStudentName(markResult.studentName || '');
-        setStudentId(result.studentId || '');
+        setStudentId(result.studentId);
+      } else {
+        setStep('error');
+        setMessage(markResult.message);
+        setErrorType('invalid');
+      }
+    } else {
+      // QR validation failed
+      setStep('error');
+      setMessage(result.error || 'Invalid QR code');
+      if (result.expired) {
+        setErrorType('expired');
       } else {
         setErrorType('invalid');
       }
     }
-  }, [token]);
+  }, [qrData]);
 
   // Countdown and redirect for success
   useEffect(() => {
@@ -106,91 +118,124 @@ const VerifyAttendance = () => {
       <Scene3D />
       <Header />
 
-      <main className="container relative z-10 py-8 max-w-lg flex flex-col items-center justify-center min-h-[70vh]">
-        {/* Validating State */}
-        {step === 'validating' && (
-          <FloatingCard>
-            <div className="text-center space-y-4 py-8">
-              <div className="w-20 h-20 mx-auto rounded-full bg-cyan-500/20 flex items-center justify-center">
-                <Loader2 size={40} className="text-cyan-400 animate-spin" />
-              </div>
-              <h2 className="text-xl font-bold font-display text-cyan-300">
-                Verifying Attendance...
-              </h2>
-              <p className="text-cyan-100/70">Please wait while we process your attendance</p>
-            </div>
-          </FloatingCard>
-        )}
-
-        {/* Success State */}
-        {step === 'success' && (
-          <div className="space-y-6 animate-scale-in w-full">
-            <FloatingCard glowColor="rgba(34, 197, 94, 0.3)">
-              <div className="text-center space-y-4 py-4">
-                <div className="w-20 h-20 mx-auto rounded-full bg-green-500/20 flex items-center justify-center">
-                  <CheckCircle size={40} className="text-green-400" />
+      <main className="container relative z-10 py-8 max-w-4xl mx-auto px-4">
+        <div className="grid lg:grid-cols-2 gap-8 items-start min-h-[70vh]">
+          
+          {/* Left Column - QR Code Section */}
+          <div className="flex flex-col items-center justify-center">
+            <FloatingCard className="w-full max-w-md">
+              <div className="text-center space-y-6">
+                <div className="w-16 h-16 mx-auto rounded-full bg-cyan-500/20 flex items-center justify-center">
+                  {step === 'validating' ? (
+                    <Loader2 size={32} className="text-cyan-400 animate-spin" />
+                  ) : step === 'success' ? (
+                    <CheckCircle size={32} className="text-green-400" />
+                  ) : (
+                    getErrorIcon()
+                  )}
                 </div>
                 
-                <h2 className="text-xl font-bold font-display text-green-400">
-                  Attendance Recorded!
-                </h2>
-                
-                <div className="space-y-1">
-                  <p className="text-lg font-semibold text-white">
-                    {studentId} – {studentName}
-                  </p>
-                  <p className="text-cyan-100/70">{message}</p>
-                </div>
-              </div>
-            </FloatingCard>
-
-            {/* Redirect Notice */}
-            <FloatingCard glowColor="rgba(34, 211, 238, 0.2)">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
-                  <Camera size={24} className="text-cyan-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-white">
-                    Redirecting to face verification...
-                  </p>
-                  <p className="text-sm text-cyan-100/70">
-                    Automatically redirecting in <span className="font-mono font-bold text-cyan-300">{countdown}</span> seconds
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold font-display text-white">
+                    {step === 'validating' && 'Verifying QR Code...'}
+                    {step === 'success' && 'QR Code Verified!'}
+                    {step === 'error' && getErrorTitle()}
+                  </h2>
+                  
+                  <p className="text-cyan-100/80 text-sm">
+                    {step === 'validating' && 'Please wait while we validate your QR code'}
+                    {step === 'success' && 'Your QR code has been successfully validated'}
+                    {step === 'error' && message}
                   </p>
                 </div>
-              </div>
-            </FloatingCard>
-          </div>
-        )}
 
-        {/* Error State */}
-        {step === 'error' && (
-          <div className="animate-scale-in w-full">
-            <FloatingCard glowColor="rgba(239, 68, 68, 0.3)">
-              <div className="text-center space-y-4 py-4">
-                <div className="w-20 h-20 mx-auto rounded-full bg-red-500/20 flex items-center justify-center">
-                  {getErrorIcon()}
-                </div>
-                
-                <h2 className="text-xl font-bold font-display text-red-400">
-                  {getErrorTitle()}
-                </h2>
-                
+                {/* Student Info */}
                 {studentName && (
-                  <p className="text-lg font-semibold text-white">
-                    {studentId} – {studentName}
-                  </p>
+                  <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                    <div className="space-y-1">
+                      <p className="text-sm text-cyan-100/60">Student Details</p>
+                      <p className="text-lg font-semibold text-white">{studentName}</p>
+                      <p className="text-sm font-mono text-cyan-300">{studentId}</p>
+                    </div>
+                  </div>
                 )}
-                
-                <p className="text-cyan-100/70">{message}</p>
-                
-                <div className="pt-4 text-sm text-cyan-200/60">
-                  Please ask your teacher for a new QR code
-                </div>
               </div>
             </FloatingCard>
           </div>
-        )}
+
+          {/* Right Column - Face Verification Section */}
+          <div className="flex flex-col items-center justify-center">
+            {step === 'success' && (
+              <FloatingCard glowColor="rgba(34, 211, 238, 0.2)" className="w-full max-w-md">
+                <div className="text-center space-y-4">
+                  <div className="w-16 h-16 mx-auto rounded-full bg-cyan-500/20 flex items-center justify-center">
+                    <Camera size={32} className="text-cyan-400" />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-bold text-white">Face Verification Required</h3>
+                    <p className="text-cyan-100/80 text-sm">
+                      Complete your attendance by scanning your face
+                    </p>
+                  </div>
+
+                  {/* Countdown Timer */}
+                  <div className="bg-cyan-500/10 rounded-lg p-4 border border-cyan-500/20">
+                    <div className="space-y-1">
+                      <p className="text-sm text-cyan-100/60">Auto-redirecting in</p>
+                      <div className="text-3xl font-mono font-bold text-cyan-300">
+                        {countdown}
+                      </div>
+                      <p className="text-xs text-cyan-100/60">seconds</p>
+                    </div>
+                  </div>
+
+                  {/* Manual Redirect Button */}
+                  <button
+                    onClick={() => navigate(`/face-capture?roll_no=${studentId}`)}
+                    className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
+                  >
+                    <Camera size={20} />
+                    Start Face Verification
+                  </button>
+                </div>
+              </FloatingCard>
+            )}
+
+            {step === 'validating' && (
+              <FloatingCard className="w-full max-w-md opacity-60">
+                <div className="text-center space-y-4 py-8">
+                  <div className="w-16 h-16 mx-auto rounded-full bg-gray-500/20 flex items-center justify-center">
+                    <Camera size={32} className="text-gray-400" />
+                  </div>
+                  <p className="text-gray-400 text-sm">Face verification will be available after QR validation</p>
+                </div>
+              </FloatingCard>
+            )}
+
+            {step === 'error' && (
+              <FloatingCard glowColor="rgba(239, 68, 68, 0.2)" className="w-full max-w-md">
+                <div className="text-center space-y-4 py-4">
+                  <div className="w-16 h-16 mx-auto rounded-full bg-red-500/20 flex items-center justify-center">
+                    <XCircle size={32} className="text-red-400" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold text-red-400">Verification Failed</h3>
+                    <p className="text-cyan-100/80 text-sm">
+                      Please contact your teacher for assistance
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="w-full bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 text-sm"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              </FloatingCard>
+            )}
+          </div>
+        </div>
       </main>
 
       <Footer />
